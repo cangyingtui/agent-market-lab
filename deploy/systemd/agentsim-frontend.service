@@ -1,0 +1,18 @@
+[Unit]
+Description=Agentsim frontend static server
+After=network-online.target agentsim-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentsim
+Group=agentsim
+WorkingDirectory=/opt/agentsim
+EnvironmentFile=/opt/agentsim/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/agentsim/.venv/bin/python scripts/serve_frontend.py --host 0.0.0.0 --port 5173 --root frontend/dist
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

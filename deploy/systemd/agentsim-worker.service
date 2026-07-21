@@ -1,0 +1,18 @@
+[Unit]
+Description=Agentsim Redis worker
+After=network-online.target mysql.service redis.service agentsim-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentsim
+Group=agentsim
+WorkingDirectory=/opt/agentsim
+EnvironmentFile=/opt/agentsim/.env
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/opt/agentsim/.venv/bin/python -m engine.worker
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

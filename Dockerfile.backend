@@ -1,0 +1,36 @@
+FROM python:3.10-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONPATH=/app \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        curl \
+        libgomp1 \
+        pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --timeout 300 --retries 10 --upgrade pip \
+    && pip install --timeout 300 --retries 10 -r requirements.txt \
+    && python -m playwright install --with-deps chromium
+
+COPY app app
+COPY engine engine
+COPY knowledge_model knowledge_model
+COPY scripts scripts
+COPY data_seed data_seed
+COPY distill_service distill_service
+COPY pytest.ini .
+
+RUN mkdir -p logs/exports
+
+EXPOSE 8000
+
+CMD ["python", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
