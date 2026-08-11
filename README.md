@@ -647,6 +647,27 @@ deploy/nginx/agentsim.conf
 
 ## 15. 后续优化方向
 
+### 市场可信度扩展
+
+- 报告同时输出“仿真环境份额”、5～50 个竞品的情景换算份额和 RCI；情景换算不是销量预测。
+- Step2 可选择默认、抖音、天猫、线下高端或自定义五维权重；正式权重冻结进快照。
+- 报告提供渠道 what-if、价格数据缺口、营销漏斗桑基图和舆情演化。
+- `POST /api/simulations/{id}/what-if` 只做确定性重算，不修改项目或重新调用模型。
+
+新仿真使用 `commercial_differentiation_v1`：策略 ROI、渠道贡献和参数影响由场景、人群、渠道先验、购买驱动与可选成本输入确定性计算，不使用随机扰动强行拉开结果。策略详情可选填基础毛利率、让利比例、单笔推广成本和总预算；未填写时使用专家规则与场景匹配，只有现有成本数据能够证明亏损时才输出具体成本风险。历史冻结报告保持原算法，复制项目并重新运行后使用新版本。
+
+### 产品价格正式迁移
+
+2026-07-28 审核批次包含 366 条价格更新和 3 条无效记录删除。全新或已有数据库统一执行：
+
+```bash
+python scripts/migrate_product_prices_20260728.py --apply-db --verify
+```
+
+迁移按 `source_file + source_row` 匹配并校验品牌/SKU，不依赖跨环境自增 ID。生产 Compose 会通过 `data-init` 按建表、种子、迁移、完整性检查的顺序自动执行。
+
+2 GB 单机部署默认关闭本地蒸馏模型；核心后端镜像不包含 Chromium、情感模型和 FAISS 备份，PDF 浏览器只存在于 export 镜像。
+
 - 拆分 `app/models.py`、`app/schemas.py` 为更细粒度模块；
 - 将 `frontend/src/api.ts` 拆分为 auth、simulation、market、report 等 API 文件；
 - 引入 Alembic，替代当前 `create_all` + `scripts/migrate_v24_indexes.py` 的轻量迁移方式；

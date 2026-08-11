@@ -20,3 +20,11 @@ logs
 *.zip
 *.tar
 *.tar.gz
+knowledge_model/sentiment
+knowledge_model/knowledge_base/*.bak.*
+releases/price_enrichment/*
+!releases/price_enrichment/missing_product_prices.tsv
+!releases/price_enrichment/price_updates_review.csv
+!releases/price_enrichment/price_updates_review_002.csv
+!releases/price_enrichment/gpt_manual_price_actions_20260728.csv
+!releases/price_enrichment/migration_manifest.json

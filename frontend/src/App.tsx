@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   BrowserRouter,
   Navigate,
@@ -45,6 +45,7 @@ import {
   Tooltip,
   Timeline,
   Typography,
+  Upload,
   theme
 } from "antd";
 import {
@@ -54,18 +55,22 @@ import {
   CopyOutlined,
   CrownOutlined,
   DeleteOutlined,
+  EditOutlined,
   FileTextOutlined,
+  InfoCircleOutlined,
   LockOutlined,
   LoginOutlined,
   LogoutOutlined,
   PlayCircleOutlined,
   PlusOutlined,
+  QuestionCircleOutlined,
   ReloadOutlined,
   RobotOutlined,
   SendOutlined,
   ShareAltOutlined,
   SettingOutlined,
   StopOutlined,
+  UploadOutlined,
   UserOutlined
 } from "@ant-design/icons";
 import { api, clearToken, downloadWithAuth, getToken, JsonObject, setToken } from "./api";
@@ -84,6 +89,22 @@ const { Title, Text, Paragraph } = Typography;
 const DEMO_ACCOUNT_USERNAMES = new Set(["normal@example", "pro@example"]);
 const CONTACT_UPGRADE_MESSAGE = "如需升级专业版，请联系客服 18960333566。";
 const CUSTOM_SUBCATEGORY_VALUE = "__custom_subcategory__";
+const CUSTOM_STRATEGY_VALUE = "__custom_strategy__";
+const CUSTOM_SCENE_VALUE = "__custom_scene__";
+const DECISION_WEIGHT_LABELS: Record<string, string> = {
+  function_fit: "功能匹配",
+  price_acceptance: "价格接受",
+  promotion_bonus: "促销加成",
+  brand_loyalty: "品牌忠诚",
+  social_influence: "社会影响"
+};
+const DEFAULT_DECISION_WEIGHTS: JsonObject = {
+  function_fit: 0.30,
+  price_acceptance: 0.25,
+  promotion_bonus: 0.10,
+  brand_loyalty: 0.15,
+  social_influence: 0.20
+};
 
 function isDemoAccount(user?: User | null): boolean {
   return user?.is_demo_account === true || Boolean(user?.username && DEMO_ACCOUNT_USERNAMES.has(user.username));
@@ -200,9 +221,16 @@ type MarketFormState = {
   crowd_segments: CrowdSegmentState[];
   strategy: string;
   strategies: string[];
+  strategy_details: JsonObject;
   scene: string;
+  scenes: string[];
+  scene_detail: JsonObject;
+  scene_details: JsonObject;
   competitors: ProductItem[];
   sample_size: number;
+  market_assumptions: JsonObject;
+  decision_weight_profile: JsonObject;
+  social_propagation_config: JsonObject;
 };
 
 type CrowdProfileState = {
@@ -253,9 +281,16 @@ const emptyMarket: MarketFormState = {
   crowd_segments: [],
   strategy: "",
   strategies: [],
+  strategy_details: {},
   scene: "",
+  scenes: [],
+  scene_detail: {},
+  scene_details: {},
   competitors: [],
-  sample_size: 1000
+  sample_size: 1000,
+  market_assumptions: { assumed_market_competitor_count: 20 },
+  decision_weight_profile: { template: "default" },
+  social_propagation_config: {}
 };
 
 type CustomParamDraft = {
@@ -294,6 +329,56 @@ const emptyCustomCompetitorDraft: CustomCompetitorDraft = {
   product_name: "",
   brand: "",
   price_cny: ""
+};
+
+type StrategyDetailDraft = {
+  name: string;
+  target_crowd: string;
+  core_selling_points: string;
+  channels: string;
+  benefit: string;
+  actions: string;
+  budget_intensity: string;
+  risk_note: string;
+  gross_margin_pct: string;
+  discount_pct: string;
+  unit_promotion_cost_cny: string;
+  total_budget_cny: string;
+};
+
+const emptyStrategyDetailDraft: StrategyDetailDraft = {
+  name: "",
+  target_crowd: "",
+  core_selling_points: "",
+  channels: "",
+  benefit: "",
+  actions: "",
+  budget_intensity: "",
+  risk_note: "",
+  gross_margin_pct: "",
+  discount_pct: "",
+  unit_promotion_cost_cny: "",
+  total_budget_cny: ""
+};
+
+type SceneDetailDraft = {
+  name: string;
+  place: string;
+  frequency: string;
+  purchase_trigger: string;
+  pain_point: string;
+  decision_maker: string;
+  note: string;
+};
+
+const emptySceneDetailDraft: SceneDetailDraft = {
+  name: "",
+  place: "",
+  frequency: "",
+  purchase_trigger: "",
+  pain_point: "",
+  decision_maker: "",
+  note: ""
 };
 
 const steps = [
@@ -341,7 +426,17 @@ const fallbackStrategies: TemplateItem[] = [
   { id: -1015, name: "服务订阅策略", description: "把耗材、保养、内容或增值服务打包成长期权益。" }
 ];
 
-const ageRangeOptions = ["18-25", "22-35", "26-40", "30-50", "45-60", "55+"].map((value) => ({ value, label: value }));
+const fallbackScenes: TemplateItem[] = [
+  { id: -2001, name: "家庭使用", description: "面向家庭日常使用、耐用性和售后体验。" },
+  { id: -2002, name: "电商促销", description: "面向平台活动、直播转化和内容种草。" },
+  { id: -2003, name: "线下门店体验", description: "面向门店试用、导购讲解和即时成交。" },
+  { id: -2004, name: "礼品采购", description: "面向节日礼赠、企业福利和体面感需求。" },
+  { id: -2005, name: "企业/机构采购", description: "面向批量采购、售后服务和统一部署。" },
+  { id: -2006, name: "户外/移动场景", description: "面向便携性、续航、防水和耐用要求。" },
+  { id: -2007, name: "母婴/家庭照护", description: "面向安全、健康、便捷和家人共同使用。" },
+  { id: -2008, name: "适老/康养场景", description: "面向易用性、安全性和持续照护需求。" }
+];
+
 const cityTierOptions = [
   { value: "tier1", label: "一线/新一线" },
   { value: "tier2", label: "二线城市" },
@@ -583,6 +678,33 @@ function findBackendCategoryForTemplate(
   );
 }
 
+function inferSubcategoryFromProductName(category: string, productName: string): string {
+  if (!category || category === "其他" || !productName.trim()) return "";
+  const normalizedProduct = normalizeProductSubcategory(productName);
+  const subcategories = productSubcategoriesForMajor(category).filter((item) => item !== "其他");
+  const direct = subcategories.find((subcategory) => {
+    const normalizedSubcategory = normalizeProductSubcategory(subcategory);
+    return normalizedSubcategory && normalizedProduct.includes(normalizedSubcategory);
+  });
+  if (direct) return direct;
+  const aliasMatch = subcategories.find((subcategory) => {
+    const template = findProductParamTemplate(category, subcategory);
+    return (template?.aliases || []).some((alias) => {
+      const normalizedAlias = normalizeProductSubcategory(alias);
+      return normalizedAlias && (normalizedProduct.includes(normalizedAlias) || normalizedAlias.includes(normalizedProduct));
+    });
+  });
+  return aliasMatch || "";
+}
+
+function inferProductCategorySuggestions(productName: string): Array<{ category: string; subcategory: string }> {
+  if (!productName.trim()) return [];
+  return PRODUCT_MAJOR_CATEGORIES.flatMap((category) => {
+    const subcategory = inferSubcategoryFromProductName(category, productName);
+    return subcategory ? [{ category, subcategory }] : [];
+  });
+}
+
 function schemaOptions(schema?: FieldUiSchema | null): Array<string | number> {
   return Array.isArray(schema?.options) ? schema.options : [];
 }
@@ -654,6 +776,30 @@ function textValue(value: unknown): string {
   return value === undefined || value === null ? "" : String(value);
 }
 
+function apiAssetUrl(path: unknown): string {
+  const value = textValue(path).trim();
+  if (!value) return "";
+  if (/^(https?:|data:)/i.test(value)) return value;
+  return value.startsWith("/") ? value : `/${value}`;
+}
+
+function userAvatarUrl(user?: User | null): string {
+  return apiAssetUrl(user?.avatar_url || "/api/user/avatar/default");
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("图片读取失败"));
+    reader.readAsDataURL(file);
+  });
+}
+
+function recordValue(value: unknown): JsonObject {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : {};
+}
+
 function normalizedStatus(value: unknown): string {
   return textValue(value).trim().toLowerCase();
 }
@@ -663,6 +809,11 @@ type StrategyRecommendationView = {
   actions: string[];
   expectedImpact: string;
   structured: boolean;
+  applicableConditions: string[];
+  recommendationPriority: string;
+  expertBasis: string;
+  commercialFeasibility: string;
+  costRisk: string;
 };
 
 function strategyRecommendationText(value: unknown): string {
@@ -692,10 +843,15 @@ function normalizeStrategyRecommendations(value: unknown): StrategyRecommendatio
         strategy,
         actions: strategyRecommendationActions(data.actions || data.action_items || data.steps || data.action),
         expectedImpact: strategyRecommendationText(data.expected_impact || data.impact || data.expected_result || data.result),
-        structured: true
+        structured: true,
+        applicableConditions: strategyRecommendationActions(data.applicable_conditions || data.conditions),
+        recommendationPriority: strategyRecommendationText(data.recommendation_priority || data.priority),
+        expertBasis: strategyRecommendationText(data.expert_basis || data.basis),
+        commercialFeasibility: strategyRecommendationText(data.commercial_feasibility || data.feasibility),
+        costRisk: strategyRecommendationText(data.cost_risk)
       }];
     }
-    return [{ strategy: strategyRecommendationText(item), actions: [], expectedImpact: "", structured: false }];
+    return [{ strategy: strategyRecommendationText(item), actions: [], expectedImpact: "", structured: false, applicableConditions: [], recommendationPriority: "", expertBasis: "", commercialFeasibility: "", costRisk: "" }];
   }).filter((item) => item.strategy);
 }
 
@@ -821,14 +977,36 @@ function numberOrNull(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function mergeStrategyTemplates(source: TemplateItem[]): TemplateItem[] {
+function mergeTemplateItems(source: TemplateItem[], fallback: TemplateItem[]): TemplateItem[] {
   const byName = new Map<string, TemplateItem>();
-  [...source, ...fallbackStrategies].forEach((item) => {
+  [...source, ...fallback].forEach((item) => {
     const name = textValue(item.name).trim();
     if (!name || byName.has(name)) return;
     byName.set(name, { ...item, name });
   });
   return Array.from(byName.values());
+}
+
+function mergeStrategyTemplates(source: TemplateItem[]): TemplateItem[] {
+  return mergeTemplateItems(source, fallbackStrategies);
+}
+
+function parseAgeRange(value: string): { min: number | null; max: number | null } {
+  const raw = value.trim();
+  if (!raw) return { min: null, max: null };
+  const plus = raw.match(/^(\d+)\+$/);
+  if (plus) return { min: Number(plus[1]), max: null };
+  const range = raw.match(/^(\d+)\s*[-~至]\s*(\d+)$/);
+  if (range) return { min: Number(range[1]), max: Number(range[2]) };
+  const single = Number(raw);
+  return Number.isFinite(single) ? { min: single, max: single } : { min: null, max: null };
+}
+
+function formatAgeRange(min: number | null, max: number | null): string {
+  if (min === null && max === null) return "";
+  if (min !== null && max === null) return `${min}+`;
+  if (min === null && max !== null) return `0-${max}`;
+  return `${min}-${Math.max(min || 0, max || 0)}`;
 }
 
 function competitorDisplayName(item: ProductItem | JsonObject | undefined): string {
@@ -842,6 +1020,19 @@ function competitorPriceValue(item: ProductItem | JsonObject | undefined): numbe
   if (raw === undefined || raw === null || raw === "") return undefined;
   const parsed = Number(raw);
   return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function isCustomCompetitor(item: ProductItem | JsonObject | undefined): boolean {
+  if (!item) return false;
+  return Boolean(item.is_custom) || textValue(item.source) === "custom" || textValue(item.competitor_type) === "custom";
+}
+
+function customCompetitorMissingFields(item: ProductItem | JsonObject | undefined): string[] {
+  if (!isCustomCompetitor(item)) return [];
+  const missing: string[] = [];
+  if (!textValue(item?.brand).trim()) missing.push("品牌");
+  if (competitorPriceValue(item) === undefined) missing.push("价格");
+  return missing;
 }
 
 function normalizeCompetitorItem(item: ProductItem | JsonObject, index = 0): ProductItem | null {
@@ -1146,6 +1337,10 @@ function projectReadableCode(project?: Project | null): string {
   return `SIM-${String(project.id).padStart(5, "0")}`;
 }
 
+function isShowcaseProject(project?: Project | null): boolean {
+  return Boolean(project?.project_name?.startsWith("【代表案例】"));
+}
+
 function uniqueProjectName(baseName: string, projects: Project[]): string {
   const trimmed = baseName.trim() || "复制方案";
   const existing = new Set(projects.map((item) => item.project_name));
@@ -1174,6 +1369,61 @@ function getChartData(report: JsonObject): JsonObject {
 
 function chartRows(value: unknown): JsonObject[] {
   return Array.isArray(value) ? (value as JsonObject[]) : [];
+}
+
+function uniqueNonEmpty(values: string[]): string[] {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    const trimmed = value.trim();
+    if (!trimmed || seen.has(trimmed)) return false;
+    seen.add(trimmed);
+    return true;
+  });
+}
+
+function configuredStrategyNames(report: JsonObject): string[] {
+  const market = recordValue(report.market_config);
+  const snapshotMarket = recordValue(recordValue(report.config_snapshot).market_config);
+  const recommendations = normalizeStrategyRecommendations(report.strategy_recommendations).map((item) => item.strategy);
+  return uniqueNonEmpty([
+    ...stringArray(market.strategies),
+    ...stringArray(market.strategy),
+    ...stringArray(snapshotMarket.strategies),
+    ...stringArray(snapshotMarket.strategy),
+    ...chartRows(report.selected_strategies).map((item) => textValue(item.name || item.strategy)),
+    ...recommendations
+  ]);
+}
+
+function strategyRoiRows(report: JsonObject): JsonObject[] {
+  const chart = chartRows(getChartData(report).strategy_roi);
+  if (chart.length) return chart;
+  const direct = chartRows(report.strategy_roi);
+  if (direct.length) return direct;
+  return configuredStrategyNames(report).map((name, index) => ({
+    name,
+    roi: Number((1.82 + Math.min(index, 4) * 0.08).toFixed(2)),
+    reach_score: Math.max(42, 64 - index * 3),
+    conversion_lift: Math.max(32, 52 - index * 2),
+    cost_pressure: Math.min(44, 22 + index * 3),
+    risk_penalty: Math.min(18, index * 2),
+    confidence: "low",
+    simulated: true
+  }));
+}
+
+function channelEffectRows(report: JsonObject): JsonObject[] {
+  const chart = chartRows(getChartData(report).channel_effect);
+  if (chart.length) return chart;
+  const direct = chartRows(report.channel_effect);
+  if (direct.length) return direct;
+  return configuredStrategyNames(report).map((name, index) => ({
+    name,
+    channel: name,
+    effect: Math.max(38, 58 - index * 3),
+    confidence: "low",
+    simulated: true
+  }));
 }
 
 type ChartMissingKind = "crowd" | "strategy" | "competitor" | "social" | "sensitivity" | "price" | "market" | "params" | "model" | "rag";
@@ -1306,6 +1556,8 @@ function flattenEvidence(report: JsonObject): JsonObject[] {
   pushRows(report.market_strategy_evidence, "market_strategy_evidence");
   pushRows(report.rag_evidence, "rag_evidence");
   pushRows(report.data_enrichment_candidates, "data_enrichment_candidates");
+  pushRows((report.web_evidence as JsonObject | undefined)?.cards, "public_evidence_cards");
+  pushRows(report.public_evidence_cards, "public_evidence_cards");
   const seen = new Set<string>();
   return rows.filter((row) => {
     const key = `${row.group}-${row.source || row.product_id || row.snippet || row.index}`;
@@ -1313,6 +1565,22 @@ function flattenEvidence(report: JsonObject): JsonObject[] {
     seen.add(key);
     return true;
   });
+}
+
+function evidenceSourceCategory(row: JsonObject): string {
+  const explicit = textValue(row.source_category);
+  if (explicit) return explicit;
+  const group = textValue(row.group);
+  const source = textValue(row.source);
+  const sourceType = textValue(row.source_type);
+  const evidenceType = textValue(row.evidence_type || (row.raw as JsonObject | undefined)?.evidence_type);
+  if (group.includes("public") || source.startsWith("public_evidence") || evidenceType.includes("strategy_case") || evidenceType.includes("scene_pain")) {
+    return "公开资料补充";
+  }
+  if (sourceType === "product_competitor" || group.includes("structured_product") || group.includes("competitor")) {
+    return "结构化竞品数据";
+  }
+  return "本地知识库";
 }
 
 function ragFinalUsedCount(report: JsonObject): number | null {
@@ -1327,10 +1595,37 @@ function ragFinalUsedCount(report: JsonObject): number | null {
   return null;
 }
 
-const CHART_PALETTE = ["#9ec6e1", "#cae0f4", "#dfdfea", "#c9cae7", "#e3d8e6"];
+const SELF_CHART_COLOR = "#9ec6e1";
+const SELF_CHART_LIGHT = "rgba(158, 198, 225, 0.22)";
+const CHART_PALETTE = [SELF_CHART_COLOR, "#cae0f4", "#dfdfea", "#c9cae7", "#e3d8e6", "#b7d6eb"];
 const CHART_TEXT_COLOR = "#475569";
 const CHART_AXIS_COLOR = "#94a3b8";
 const CHART_GRID_COLOR = "#e8eef7";
+
+function reportProductName(report: JsonObject): string {
+  const product = recordValue(report.product_definition || report.product || recordValue(report.config_snapshot).product_definition);
+  return textValue(product.product_name || product.name || report.product_name).trim();
+}
+
+function isSelfChartItem(item: JsonObject | undefined, productName = ""): boolean {
+  if (!item) return false;
+  const source = textValue(item.source || item.kind || item.type).toLowerCase();
+  const role = textValue(item.role || item.item_type).toLowerCase();
+  const name = textValue(item.name || item.product_name || item.fullName);
+  return Boolean(
+    item.is_self ||
+    item.is_own_product ||
+    source === "self" ||
+    role === "self" ||
+    name.includes("本品") ||
+    name.includes("当前产品") ||
+    (productName && name === productName)
+  );
+}
+
+function selfFirstChartRows(rows: JsonObject[], productName = ""): JsonObject[] {
+  return [...rows].sort((a, b) => Number(isSelfChartItem(b, productName)) - Number(isSelfChartItem(a, productName)));
+}
 
 function chartAxis(extra: JsonObject = {}): JsonObject {
   return {
@@ -1499,6 +1794,7 @@ function Navbar({
           <Button icon={<UserOutlined />} onClick={() => navigate("/projects")}>
             个人主页
           </Button>
+          <Avatar size={28} src={userAvatarUrl(user)} icon={<UserOutlined />} />
           <Text type="secondary">{user.username}</Text>
           <Button icon={<LogoutOutlined />} onClick={onLogout}>
             退出
@@ -1646,6 +1942,7 @@ function ProjectsPage({ user, onLogout, onUserChange }: { user: User; onLogout: 
   const [statusFilter, setStatusFilter] = useState("all");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [settingsDraft, setSettingsDraft] = useState({ full_name: "", email: "", avatar_url: "" });
 
   const displayName = textValue(user.nickname || user.username);
@@ -1718,9 +2015,40 @@ function ProjectsPage({ user, onLogout, onUserChange }: { user: User; onLogout: 
     setSettingsDraft({
       full_name: textValue(user.full_name || user.nickname),
       email: textValue(user.email),
-      avatar_url: textValue(user.avatar_url)
+      avatar_url: userAvatarUrl(user)
     });
     setSettingsOpen(true);
+  }
+
+  async function handleAvatarUpload(file: File) {
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+    if (!allowedTypes.has(file.type)) {
+      message.warning("头像仅支持 JPG、PNG 或 WebP 图片");
+      return Upload.LIST_IGNORE;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      message.warning("头像图片建议控制在 2MB 以内");
+      return Upload.LIST_IGNORE;
+    }
+    setAvatarUploading(true);
+    try {
+      const dataBase64 = await fileToBase64(file);
+      const response = (await api.uploadAvatar({
+        filename: file.name,
+        content_type: file.type,
+        data_base64: dataBase64
+      })) as JsonObject;
+      const nextUser = response.user as User | undefined;
+      if (nextUser) onUserChange(nextUser);
+      const avatarUrl = textValue(response.avatar_url || nextUser?.avatar_url);
+      setSettingsDraft((current) => ({ ...current, avatar_url: apiAssetUrl(avatarUrl) }));
+      message.success("头像已更新");
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "头像上传失败");
+    } finally {
+      setAvatarUploading(false);
+    }
+    return Upload.LIST_IGNORE;
   }
 
   async function saveSettings() {
@@ -1811,7 +2139,7 @@ function ProjectsPage({ user, onLogout, onUserChange }: { user: User; onLogout: 
     >
       <Card className="info-card dashboard-hero">
         <div className="dashboard-profile">
-          <Avatar size={64} src={textValue(user.avatar_url)} icon={<UserOutlined />} />
+          <Avatar size={64} src={userAvatarUrl(user)} icon={<UserOutlined />} />
           <div>
             <Title level={3}>你好，{displayName}</Title>
             <Text type="secondary">在这里管理仿真方案、继续草稿、查看报告和账号版本。</Text>
@@ -1899,7 +2227,16 @@ function ProjectsPage({ user, onLogout, onUserChange }: { user: User; onLogout: 
             }
           }}
           columns={[
-            { title: "项目名称", dataIndex: "project_name" },
+            {
+              title: "项目名称",
+              dataIndex: "project_name",
+              render: (name: string, record: Project) => (
+                <Space size={6} wrap>
+                  {isShowcaseProject(record) && <Tag color="magenta">代表案例</Tag>}
+                  <Text strong={isShowcaseProject(record)}>{name}</Text>
+                </Space>
+              )
+            },
             {
               title: "版本",
               dataIndex: "plan_type_used",
@@ -1953,12 +2290,25 @@ function ProjectsPage({ user, onLogout, onUserChange }: { user: User; onLogout: 
               onChange={(event) => setSettingsDraft((current) => ({ ...current, email: event.target.value }))}
             />
           </Form.Item>
-          <Form.Item label="头像链接">
-            <Input
-              value={settingsDraft.avatar_url}
-              placeholder="可填写图片 URL"
-              onChange={(event) => setSettingsDraft((current) => ({ ...current, avatar_url: event.target.value }))}
-            />
+          <Form.Item label="头像">
+            <Space align="center" className="settings-avatar-row">
+              <Avatar size={56} src={apiAssetUrl(settingsDraft.avatar_url) || userAvatarUrl(user)} icon={<UserOutlined />} />
+              <Upload
+                accept="image/jpeg,image/png,image/webp"
+                showUploadList={false}
+                beforeUpload={(file) => {
+                  void handleAvatarUpload(file as File);
+                  return Upload.LIST_IGNORE;
+                }}
+              >
+                <Button icon={<UploadOutlined />} loading={avatarUploading}>
+                  上传图片
+                </Button>
+              </Upload>
+            </Space>
+            <div>
+              <Text type="secondary">支持 JPG、PNG、WebP，建议 2MB 内。</Text>
+            </div>
           </Form.Item>
           <Alert
             type="info"
@@ -2045,8 +2395,14 @@ function AssistantSidebarCard({
       setFieldCards(Array.isArray(response.field_cards) ? response.field_cards as AssistantFieldCard[] : []);
       setSource(textValue(response.source || "fallback"));
     } catch (error) {
-      setMessages((current) => [...current, { role: "assistant", content: "助手暂时没有连上。你可以稍后再问，页面原有功能不受影响。" }]);
-      message.error(error instanceof Error ? error.message : "助手请求失败");
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          content: "助手服务暂时未连上，我先按页面信息给您本地建议；页面填写和保存不受影响。您可以继续填写，字段问题请优先按页面提示完成必填项。"
+        }
+      ]);
+      message.warning(error instanceof Error ? error.message : "助手服务暂时未连上");
     } finally {
       setLoading(false);
     }
@@ -2262,7 +2618,12 @@ function ProjectSidebar({
               ]}
             >
               <List.Item.Meta
-                title={<Text ellipsis>{item.project_name}</Text>}
+                title={
+                  <Space size={4}>
+                    {isShowcaseProject(item) && <Tag color="magenta">代表案例</Tag>}
+                    <Text ellipsis strong={isShowcaseProject(item)}>{item.project_name}</Text>
+                  </Space>
+                }
                 description={
                   <Space size={4} wrap>
                     <Tag color={item.plan_type_used === "pro" ? "gold" : "default"}>{item.plan_type_used === "pro" ? "专业" : "普通"}</Tag>
@@ -2343,6 +2704,10 @@ function Step1Product({ user, onLogout, onUserChange }: { user: User; onLogout: 
   const limitedTemplateParams = parameterAreaReady && !customCategorySelected && visibleFields.length > 0 && visibleFields.length < 3;
   const complexityPercent = maxParams ? Math.min(100, Math.round((enabledSpecNames.length / maxParams) * 100)) : 0;
   const estimatedSeconds = Math.max(5, enabledSpecNames.length * 5);
+  const inferredProductSuggestions = inferProductCategorySuggestions(form.product_name).slice(0, 4);
+  const matchedProductSuggestion = inferredProductSuggestions.find(
+    (item) => item.category === form.category && item.subcategory === form.subcategory
+  );
 
   function hydrate(data: JsonObject) {
     const params = Array.isArray(data.params) ? (data.params as JsonObject[]) : [];
@@ -2430,11 +2795,14 @@ function Step1Product({ user, onLogout, onUserChange }: { user: User; onLogout: 
   function selectMajorCategory(value: string) {
     if (value === form.category) return;
     if (!confirmClearParams()) return;
+    const inferredSubcategory = inferSubcategoryFromProductName(value, form.product_name);
+    const nextTemplate = inferredSubcategory ? findProductParamTemplate(value, inferredSubcategory) : undefined;
+    const next = inferredSubcategory ? findBackendCategoryForTemplate(categories, value, inferredSubcategory, nextTemplate) : undefined;
     setForm((current) => ({
       ...current,
       category: value,
-      category_id: "",
-      subcategory: value === "其他" ? current.subcategory : "",
+      category_id: next ? String(next.id) : "",
+      subcategory: value === "其他" ? current.subcategory : inferredSubcategory,
       is_custom_subcategory: false,
       specifications: {}
     }));
@@ -2475,6 +2843,46 @@ function Step1Product({ user, onLogout, onUserChange }: { user: User; onLogout: 
     setParamWeights({});
     setExcludedParamNames([]);
     setCustomFields({});
+  }
+
+  function applyProductCategorySuggestion(category: string, subcategory: string) {
+    if (form.category === category && form.subcategory === subcategory && !form.is_custom_subcategory) return;
+    if (!confirmClearParams()) return;
+    const nextTemplate = findProductParamTemplate(category, subcategory);
+    const next = findBackendCategoryForTemplate(categories, category, subcategory, nextTemplate);
+    setForm((current) => ({
+      ...current,
+      category,
+      category_id: next ? String(next.id) : "",
+      subcategory,
+      is_custom_subcategory: false,
+      specifications: {}
+    }));
+    setParamWeights({});
+    setExcludedParamNames([]);
+    setCustomFields({});
+  }
+
+  function updateProductName(value: string) {
+    const inferredSubcategory = !form.subcategory && !form.is_custom_subcategory ? inferSubcategoryFromProductName(form.category, value) : "";
+    if (inferredSubcategory) {
+      const nextTemplate = findProductParamTemplate(form.category, inferredSubcategory);
+      const next = findBackendCategoryForTemplate(categories, form.category, inferredSubcategory, nextTemplate);
+      setForm((current) => ({
+        ...current,
+        product_name: value,
+        category_id: next ? String(next.id) : "",
+        category: next?.category || current.category,
+        subcategory: inferredSubcategory,
+        is_custom_subcategory: false,
+        specifications: {}
+      }));
+      setParamWeights({});
+      setExcludedParamNames([]);
+      setCustomFields({});
+      return;
+    }
+    setForm((current) => ({ ...current, product_name: value }));
   }
 
   function addParam(field: FieldTemplate) {
@@ -2580,7 +2988,8 @@ function Step1Product({ user, onLogout, onUserChange }: { user: User; onLogout: 
     } else if (!form.subcategory.trim() && !form.category_id) {
       return "请先选择产品小品类";
     }
-    if (form.price_cny.trim() && numberOrNull(form.price_cny) === null) return "价格请填写确定数字，例如 3999";
+    const price = numberOrNull(form.price_cny);
+    if (!form.price_cny.trim() || price === null || price <= 0) return "请填写产品价格，价格需为确定数字，例如 3999";
     return null;
   }
 
@@ -2930,9 +3339,35 @@ function Step1Product({ user, onLogout, onUserChange }: { user: User; onLogout: 
                     <Input
                       value={form.product_name}
                       placeholder="请输入产品名称"
-                      onChange={(event) => setForm((current) => ({ ...current, product_name: event.target.value }))}
+                      onChange={(event) => updateProductName(event.target.value)}
                     />
                   </Form.Item>
+                  {inferredProductSuggestions.length > 0 && (
+                    <Alert
+                      className="mb-16"
+                      type={matchedProductSuggestion ? "success" : "info"}
+                      showIcon
+                      message={matchedProductSuggestion ? `已根据产品名称匹配到：${matchedProductSuggestion.category} / ${matchedProductSuggestion.subcategory}` : "检测到产品名称可能对应以下品类"}
+                      description={
+                        matchedProductSuggestion ? (
+                          <Text type="secondary">如不准确，可手动调整大品类和小品类。</Text>
+                        ) : (
+                          <Space size={8} wrap>
+                            {inferredProductSuggestions.map((item) => (
+                              <Button
+                                key={`${item.category}-${item.subcategory}`}
+                                size="small"
+                                onClick={() => applyProductCategorySuggestion(item.category, item.subcategory)}
+                              >
+                                使用 {item.category} / {item.subcategory}
+                              </Button>
+                            ))}
+                            <Text type="secondary">请选择最符合贵公司产品定位的分类。</Text>
+                          </Space>
+                        )
+                      }
+                    />
+                  )}
                 </Col>
                 <Col xs={24} md={12}>
                   <Form.Item label="品牌">
@@ -2944,10 +3379,11 @@ function Step1Product({ user, onLogout, onUserChange }: { user: User; onLogout: 
                   </Form.Item>
                 </Col>
                 <Col xs={24} md={12}>
-                  <Form.Item label="价格（元）">
+                  <Form.Item label="价格（元）" required>
                     <Input
                       value={form.price_cny}
-                      placeholder="请输入参考价格"
+                      inputMode="decimal"
+                      placeholder="请输入贵公司实际售价，如 3999"
                       onChange={(event) => setForm((current) => ({ ...current, price_cny: event.target.value }))}
                     />
                   </Form.Item>
@@ -3231,6 +3667,12 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
   const [activeMarketModule, setActiveMarketModule] = useState<MarketModuleKey>("crowd");
   const [customCompetitorOpen, setCustomCompetitorOpen] = useState(false);
   const [customCompetitorDraft, setCustomCompetitorDraft] = useState<CustomCompetitorDraft>(emptyCustomCompetitorDraft);
+  const [priceFillQueued, setPriceFillQueued] = useState(false);
+  const priceFillRefreshTimer = useRef<number | null>(null);
+  const [strategyDetailOpen, setStrategyDetailOpen] = useState(false);
+  const [strategyDetailDraft, setStrategyDetailDraft] = useState<StrategyDetailDraft>(emptyStrategyDetailDraft);
+  const [sceneDetailOpen, setSceneDetailOpen] = useState(false);
+  const [sceneDetailDraft, setSceneDetailDraft] = useState<SceneDetailDraft>(emptySceneDetailDraft);
   const currentPlan = projectPlan(project, user);
   const isProPlan = currentPlan === "pro";
   const crowdOptions = useMemo(() => {
@@ -3239,9 +3681,28 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
     fallbackCrowds.forEach((item) => names.add(item));
     return Array.from(names).map((name) => ({ value: name, label: name }));
   }, [crowds]);
+  const strategyTemplateOptions = useMemo(() => mergeStrategyTemplates(strategies), [strategies]);
+  const sceneTemplateOptions = useMemo(() => mergeTemplateItems(scenes, fallbackScenes), [scenes]);
+  const strategySelectOptions = useMemo(
+    () => [
+      ...strategyTemplateOptions.map((item) => ({ value: item.name, label: item.name })),
+      { value: CUSTOM_STRATEGY_VALUE, label: "自定义策略" }
+    ],
+    [strategyTemplateOptions]
+  );
+  const sceneSelectOptions = useMemo(
+    () => [
+      ...sceneTemplateOptions.map((item) => ({ value: item.name, label: item.name })),
+      { value: CUSTOM_SCENE_VALUE, label: "自定义场景" }
+    ],
+    [sceneTemplateOptions]
+  );
   const selectedStrategies = isProPlan
     ? stringArray(market.strategies)
     : stringArray(market.strategy || market.strategies[0]).slice(0, 1);
+  const selectedScenes = isProPlan
+    ? stringArray(market.scenes.length ? market.scenes : market.scene)
+    : stringArray(market.scene || market.scenes[0]).slice(0, 1);
 
   function hydrate(data: JsonObject) {
     const legacyName = textValue(data.target_crowd || data.crowd);
@@ -3262,15 +3723,29 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
         ? [{ name: legacyName, ratio: 100, is_custom: false, profile: legacyProfile }]
         : [];
     const primary = primaryCrowdSegment(normalizedSegments);
+    const rawScenes = stringArray(data.scenes);
+    const sceneList = rawScenes.length ? rawScenes : stringArray(data.scene);
+    const sceneDetails = recordValue(data.scene_details);
+    const legacySceneDetail = recordValue(data.scene_detail);
+    if (sceneList[0] && Object.keys(legacySceneDetail).length && !sceneDetails[sceneList[0]]) {
+      sceneDetails[sceneList[0]] = legacySceneDetail;
+    }
     setMarket({
       target_crowd: primary?.name || legacyName,
       crowd_profile: primary?.profile || legacyProfile,
       crowd_segments: normalizedSegments,
       strategy: textValue(data.strategy || stringArray(data.strategies)[0]),
       strategies: stringArray(data.strategies).length ? stringArray(data.strategies) : stringArray(data.strategy),
-      scene: textValue(data.scene),
+      strategy_details: recordValue(data.strategy_details),
+      scene: textValue(sceneList[0]),
+      scenes: sceneList,
+      scene_detail: legacySceneDetail,
+      scene_details: sceneDetails,
       competitors: sanitizeCompetitors(data.competitors),
-      sample_size: numberValue(data.sample_size, projectPlan(project, user) === "pro" ? 10000 : 1000)
+      sample_size: numberValue(data.sample_size, projectPlan(project, user) === "pro" ? 10000 : 1000),
+      market_assumptions: { ...recordValue(data.market_assumptions), assumed_market_competitor_count: numberValue(recordValue(data.market_assumptions).assumed_market_competitor_count, 20) },
+      decision_weight_profile: Object.keys(recordValue(data.decision_weight_profile)).length ? recordValue(data.decision_weight_profile) : { template: "default" },
+      social_propagation_config: recordValue(data.social_propagation_config)
     });
     setActiveCrowdName(normalizedSegments[0]?.name || "");
   }
@@ -3316,6 +3791,25 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
     ));
   }
 
+  function updateCrowdAgeRange(bound: "min" | "max", value: number | null) {
+    setMarket((current) => {
+      const segments = current.crowd_segments.map((segment) => {
+        if (segment.name !== activeCrowdName) return segment;
+        const parsed = parseAgeRange(segment.profile.age_range);
+        const nextMin = bound === "min" ? value : parsed.min;
+        const nextMax = bound === "max" ? value : parsed.max;
+        return {
+          ...segment,
+          profile: {
+            ...segment.profile,
+            age_range: formatAgeRange(nextMin, nextMax)
+          }
+        };
+      });
+      return withLegacyCrowdFields(current, segments);
+    });
+  }
+
   function redistributeCrowds(mode: "template" | "equal") {
     setMarket((current) => withLegacyCrowdFields(current, distributeCrowdRatios(current.crowd_segments, crowds, mode)));
   }
@@ -3337,16 +3831,25 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
       const pageSize = loadAll ? 100 : 20;
       let offset = 0;
       let total = 0;
+      let queuedCount = 0;
       const rows: ProductItem[] = [];
       do {
         const productResponse = (await api.products(productQuery(pageSize, offset))) as JsonObject;
         const items = listItems<ProductItem>(productResponse);
+        queuedCount += Number((productResponse.price_enrichment as JsonObject | undefined)?.queued || 0);
         total = Number(productResponse.total || items.length);
         rows.push(...items);
         offset += pageSize;
       } while (loadAll && rows.length < total && offset < 2000);
       const normalizedRows = sanitizeCompetitors(rows);
       setCompetitors(normalizedRows);
+      setPriceFillQueued(queuedCount > 0);
+      if (queuedCount > 0 && !loadAll && priceFillRefreshTimer.current === null) {
+        priceFillRefreshTimer.current = window.setTimeout(() => {
+          priceFillRefreshTimer.current = null;
+          void loadCompetitorProducts(false).catch(() => setPriceFillQueued(false));
+        }, 8000);
+      }
       return normalizedRows;
     } finally {
       setLoadingCompetitors(false);
@@ -3354,23 +3857,42 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
   }
 
   async function loadResources() {
-    const templateResponse = (await api.marketTemplates()) as JsonObject;
-    setCrowds(listItems<TemplateItem>(templateResponse.crowd));
-    setStrategies(mergeStrategyTemplates(listItems<TemplateItem>(templateResponse.strategy)));
-    setScenes(listItems<TemplateItem>(templateResponse.scene));
-    await loadCompetitorProducts(projectPlan(project, user) === "pro");
+    try {
+      const templateResponse = (await api.marketTemplates()) as JsonObject;
+      setCrowds(listItems<TemplateItem>(templateResponse.crowd));
+      setStrategies(mergeStrategyTemplates(listItems<TemplateItem>(templateResponse.strategy)));
+      setScenes(mergeTemplateItems(listItems<TemplateItem>(templateResponse.scene), fallbackScenes));
+    } catch (error) {
+      setCrowds([]);
+      setStrategies(fallbackStrategies);
+      setScenes(fallbackScenes);
+      message.warning("市场模板暂时未加载，已启用基础候选项，已填写内容会继续保留。");
+    }
+    try {
+      await loadCompetitorProducts(projectPlan(project, user) === "pro");
+    } catch (error) {
+      setCompetitors((current) => sanitizeCompetitors(current));
+      message.warning("竞品候选暂时未加载，您仍可使用自定义竞品。");
+    }
   }
 
   useEffect(() => {
     if (project?.market_config) hydrate(project.market_config);
-    if (project) loadResources().catch((error) => message.error(error instanceof Error ? error.message : "市场模板加载失败"));
-  }, [project?.id]);
+    if (project) void loadResources();
+  }, [project?.id, project?.product_definition?.category_id, project?.product_definition?.category, project?.product_definition?.subcategory]);
+
+  useEffect(() => () => {
+    if (priceFillRefreshTimer.current !== null) {
+      window.clearTimeout(priceFillRefreshTimer.current);
+      priceFillRefreshTimer.current = null;
+    }
+  }, []);
 
   function step2ValidationError(): { message: string; module: MarketModuleKey } | null {
     if (!market.crowd_segments.length) return { message: "请至少选择 1 类目标客群", module: "crowd" };
     const ratioTotal = market.crowd_segments.reduce((sum, segment) => sum + segment.ratio, 0);
     if (ratioTotal !== 100) return { message: "目标客群比例合计必须为 100%", module: "crowd" };
-    if (!market.scene.trim()) return { message: "请先选择使用场景", module: "scene" };
+    if (!selectedScenes.length) return { message: "请先选择使用场景", module: "scene" };
     if (!selectedStrategies.length) return { message: "请先选择营销策略", module: "strategy" };
     if (!sanitizeCompetitors(market.competitors).length) return { message: "请至少选择或添加 1 个竞品", module: "competitor" };
     return null;
@@ -3424,7 +3946,180 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
       return { ...current, competitors: isProPlan ? next : next.slice(-1) };
     });
     setCustomCompetitorOpen(false);
-    message.success("自定义竞品已添加");
+    const missingFields = customCompetitorMissingFields(customCompetitor);
+    if (missingFields.length) {
+      message.warning(`自定义竞品已添加，但缺少${missingFields.join("、")}；报告中会明确标记为自定义竞品信息缺口。`);
+    } else {
+      message.success("自定义竞品已添加");
+    }
+  }
+
+  function strategyDetailForName(name: string): JsonObject {
+    const details = recordValue(market.strategy_details);
+    return recordValue(details[name]);
+  }
+
+  function strategyDraftFromName(name: string): StrategyDetailDraft {
+    const detail = strategyDetailForName(name);
+    const economics = recordValue(detail.economics);
+    return {
+      name: textValue(detail.name || name),
+      target_crowd: textValue(detail.target_crowd),
+      core_selling_points: stringArray(detail.core_selling_points).join("，") || textValue(detail.core_selling_points),
+      channels: stringArray(detail.channels).join("，") || textValue(detail.channels),
+      benefit: textValue(detail.benefit),
+      actions: stringArray(detail.actions).join("，") || textValue(detail.actions),
+      budget_intensity: textValue(detail.budget_intensity),
+      risk_note: textValue(detail.risk_note),
+      gross_margin_pct: textValue(economics.gross_margin_pct),
+      discount_pct: textValue(economics.discount_pct),
+      unit_promotion_cost_cny: textValue(economics.unit_promotion_cost_cny),
+      total_budget_cny: textValue(economics.total_budget_cny)
+    };
+  }
+
+  function openStrategyDetail(name = "") {
+    setStrategyDetailDraft(name ? strategyDraftFromName(name) : emptyStrategyDetailDraft);
+    setStrategyDetailOpen(true);
+  }
+
+  function handleStrategyChange(value: string | string[]) {
+    const values = Array.isArray(value) ? value : [value];
+    if (values.includes(CUSTOM_STRATEGY_VALUE)) {
+      openStrategyDetail("");
+    }
+    const cleaned = values.filter((item) => item && item !== CUSTOM_STRATEGY_VALUE);
+    if (values.includes(CUSTOM_STRATEGY_VALUE) && !cleaned.length) {
+      return;
+    }
+    setMarket((current) => ({
+      ...current,
+      strategies: isProPlan ? cleaned : cleaned.slice(0, 1),
+      strategy: textValue(cleaned[0] || current.strategy)
+    }));
+  }
+
+  function submitStrategyDetail() {
+    const name = strategyDetailDraft.name.trim();
+    if (!name) {
+      message.warning("请输入策略名称");
+      return;
+    }
+    const economicsEntries = [
+      ["gross_margin_pct", strategyDetailDraft.gross_margin_pct],
+      ["discount_pct", strategyDetailDraft.discount_pct],
+      ["unit_promotion_cost_cny", strategyDetailDraft.unit_promotion_cost_cny],
+      ["total_budget_cny", strategyDetailDraft.total_budget_cny]
+    ].filter(([, value]) => textValue(value).trim() !== "");
+    const economics = Object.fromEntries(economicsEntries.map(([key, value]) => [key, Number(value)]));
+    const detail = {
+      name,
+      target_crowd: strategyDetailDraft.target_crowd.trim(),
+      core_selling_points: stringArray(strategyDetailDraft.core_selling_points),
+      channels: stringArray(strategyDetailDraft.channels),
+      benefit: strategyDetailDraft.benefit.trim(),
+      actions: stringArray(strategyDetailDraft.actions),
+      budget_intensity: strategyDetailDraft.budget_intensity.trim(),
+      risk_note: strategyDetailDraft.risk_note.trim(),
+      ...(Object.keys(economics).length ? { economics } : {})
+    };
+    setMarket((current) => {
+      const nextStrategies = Array.from(new Set([...(isProPlan ? stringArray(current.strategies) : []), name]));
+      const allowedStrategies = isProPlan ? nextStrategies : nextStrategies.slice(-1);
+      return {
+        ...current,
+        strategy: allowedStrategies[0] || name,
+        strategies: allowedStrategies,
+        strategy_details: {
+          ...recordValue(current.strategy_details),
+          [name]: detail
+        }
+      };
+    });
+    setStrategyDetailOpen(false);
+    message.success("策略详情已保存");
+  }
+
+  function sceneDetailForName(name: string): JsonObject {
+    const details = recordValue(market.scene_details);
+    const mapped = recordValue(details[name]);
+    if (Object.keys(mapped).length) return mapped;
+    return name === market.scene ? recordValue(market.scene_detail) : {};
+  }
+
+  function sceneDraftFromName(name: string): SceneDetailDraft {
+    const detail = sceneDetailForName(name);
+    return {
+      name: textValue(detail.name || name),
+      place: textValue(detail.place),
+      frequency: textValue(detail.frequency),
+      purchase_trigger: textValue(detail.purchase_trigger),
+      pain_point: textValue(detail.pain_point),
+      decision_maker: textValue(detail.decision_maker),
+      note: textValue(detail.note)
+    };
+  }
+
+  function openSceneDetail(name = selectedScenes[0] || market.scene) {
+    setSceneDetailDraft(name ? sceneDraftFromName(name) : emptySceneDetailDraft);
+    setSceneDetailOpen(true);
+  }
+
+  function handleSceneChange(value: string | string[]) {
+    const values = Array.isArray(value) ? value : [value];
+    if (values.includes(CUSTOM_SCENE_VALUE)) {
+      openSceneDetail("");
+    }
+    const cleaned = Array.from(new Set(values.map(textValue).filter((item) => item && item !== CUSTOM_SCENE_VALUE)));
+    if (values.includes(CUSTOM_SCENE_VALUE) && !cleaned.length) {
+      return;
+    }
+    const allowedScenes = isProPlan ? cleaned : cleaned.slice(0, 1);
+    const nextPrimaryScene = textValue(allowedScenes[0] || "");
+    setMarket((current) => {
+      const mappedDetail = nextPrimaryScene ? recordValue(recordValue(current.scene_details)[nextPrimaryScene]) : {};
+      const legacyDetail = nextPrimaryScene === current.scene ? recordValue(current.scene_detail) : {};
+      return {
+        ...current,
+        scene: nextPrimaryScene,
+        scenes: allowedScenes,
+        scene_detail: Object.keys(mappedDetail).length ? mappedDetail : legacyDetail,
+      };
+    });
+  }
+
+  function submitSceneDetail() {
+    const name = sceneDetailDraft.name.trim();
+    if (!name) {
+      message.warning("请输入场景名称");
+      return;
+    }
+    const detail = {
+      name,
+      place: sceneDetailDraft.place.trim(),
+      frequency: sceneDetailDraft.frequency.trim(),
+      purchase_trigger: sceneDetailDraft.purchase_trigger.trim(),
+      pain_point: sceneDetailDraft.pain_point.trim(),
+      decision_maker: sceneDetailDraft.decision_maker.trim(),
+      note: sceneDetailDraft.note.trim()
+    };
+    setMarket((current) => {
+      const nextScenes = Array.from(new Set([...(isProPlan ? stringArray(current.scenes) : []), name]));
+      const allowedScenes = isProPlan ? nextScenes : nextScenes.slice(-1);
+      const primaryScene = allowedScenes[0] || name;
+      return {
+        ...current,
+        scene: primaryScene,
+        scenes: allowedScenes,
+        scene_detail: primaryScene === name ? detail : recordValue(current.scene_detail),
+        scene_details: {
+          ...recordValue(current.scene_details),
+          [name]: detail
+        }
+      };
+    });
+    setSceneDetailOpen(false);
+    message.success("场景详情已保存");
   }
 
   async function save() {
@@ -3437,6 +4132,9 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
       const strategyList = currentPlan === "pro"
         ? (selectedStrategies.length ? selectedStrategies : stringArray(market.strategy))
         : stringArray(market.strategy || market.strategies[0]).slice(0, 1);
+      const sceneList = currentPlan === "pro"
+        ? (selectedScenes.length ? selectedScenes : stringArray(market.scene))
+        : stringArray(market.scene || market.scenes[0]).slice(0, 1);
       const sampleSize = currentPlan === "pro" ? clamp(numberValue(market.sample_size, 10000), 1000, 10000) : 1000;
       const crowdSegmentsForSave = market.crowd_segments.map((segment) => ({
         ...segment,
@@ -3457,6 +4155,11 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
         crowd_segments: crowdSegmentsForSave,
         strategy: strategyList[0] || market.strategy,
         strategies: strategyList,
+        strategy_details: market.strategy_details,
+        scene: sceneList[0] || market.scene,
+        scenes: sceneList,
+        scene_detail: sceneList[0] ? sceneDetailForName(sceneList[0]) : market.scene_detail,
+        scene_details: market.scene_details,
         sample_size: sampleSize,
         competitors: competitorsForSave
       })) as Project;
@@ -3464,43 +4167,55 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
       message.success("市场配置已保存");
       navigate(projectPath(3, projectId));
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "保存失败");
+      message.error(error instanceof Error ? `服务器暂时繁忙，当前填写内容已保留，请稍后重试保存。${error.message}` : "服务器暂时繁忙，当前填写内容已保留，请稍后重试保存。");
     } finally {
       setSaving(false);
     }
   }
 
   const competitorColumns = [
-    { title: "品牌", dataIndex: "brand" },
-    { title: "产品", dataIndex: "product_name" },
+    { title: "品牌", dataIndex: "brand", render: (value: unknown, record: ProductItem) => textValue(value) || (isCustomCompetitor(record) ? <Text type="secondary">自定义竞品未填写</Text> : "-") },
+    { title: "产品", dataIndex: "product_name", render: (value: unknown, record: ProductItem) => <Space size={6}>{isCustomCompetitor(record) && <Tag color="purple">自定义竞品</Tag>}<Text>{textValue(value)}</Text></Space> },
     {
       title: "价格",
       dataIndex: "price_cny",
-      render: (value: number | undefined) => (value ? `￥${value}` : <Text type="secondary">缺失</Text>)
+      render: (_value: number | undefined, record: ProductItem) => {
+        const price = competitorPriceValue(record);
+        if (price !== undefined) return `￥${price}`;
+        return (
+          <Space size={4} className="price-missing-inline">
+            <Text type="secondary">{isCustomCompetitor(record) ? "自定义竞品价格未填写" : "价格待补充"}</Text>
+            <Tooltip title={isCustomCompetitor(record) ? "这是用户新增的自定义竞品，价格缺失不影响保存，但价格敏感性和份额推演会明确显示该自定义数据缺口。" : "产品库竞品价格缺失不影响保存。系统会优先使用数据库价格，并尝试通过公开资料补全；如数据不符合需要，请联系客服 18960333566。"}>
+              <InfoCircleOutlined className="muted-help-icon" />
+            </Tooltip>
+          </Space>
+        );
+      }
     }
   ];
   const crowdRatioTotal = market.crowd_segments.reduce((sum, segment) => sum + segment.ratio, 0);
   const activeCrowdSegment = market.crowd_segments.find((segment) => segment.name === activeCrowdName) || market.crowd_segments[0];
   const activeCrowdProfile = activeCrowdSegment?.profile || emptyCrowdProfile();
+  const activeAgeRange = parseAgeRange(activeCrowdProfile.age_range);
   const completionItems = [
     {
       key: "crowd" as MarketModuleKey,
       label: marketModuleLabels.crowd,
       done: Boolean(market.crowd_segments.length && crowdRatioTotal === 100)
     },
-    { key: "scene" as MarketModuleKey, label: marketModuleLabels.scene, done: Boolean(market.scene) },
+    { key: "scene" as MarketModuleKey, label: marketModuleLabels.scene, done: selectedScenes.length > 0 },
     { key: "strategy" as MarketModuleKey, label: marketModuleLabels.strategy, done: selectedStrategies.length > 0 },
     { key: "competitor" as MarketModuleKey, label: marketModuleLabels.competitor, done: market.competitors.length > 0 },
     { key: "sample" as MarketModuleKey, label: marketModuleLabels.sample, done: Boolean(isProPlan ? market.sample_size : true) }
   ];
   const completionPercent = Math.round((completionItems.filter((item) => item.done).length / completionItems.length) * 100);
   const selectedCompetitorsForPreview = sanitizeCompetitors(market.competitors);
-  const missingCompetitorPriceCount = selectedCompetitorsForPreview.filter((item) => competitorPriceValue(item) === undefined).length;
+  const customCompetitorGapCount = selectedCompetitorsForPreview.filter((item) => customCompetitorMissingFields(item).length > 0).length;
+  const catalogMissingPriceCount = selectedCompetitorsForPreview.filter((item) => !isCustomCompetitor(item) && competitorPriceValue(item) === undefined).length;
   const reportCompletenessTips = [
     !market.crowd_segments.length || crowdRatioTotal !== 100 ? "缺少目标客群或比例会影响人群分析和购买意愿分客群图表。" : "",
     !selectedStrategies.length ? "缺少营销策略会影响策略 ROI、渠道贡献和策略证据板块。" : "",
-    !selectedCompetitorsForPreview.length ? "缺少竞品会影响市场占比、竞品分析和价格敏感曲线。" : "",
-    missingCompetitorPriceCount > 0 ? "竞品价格缺失时仍可保存，但价格覆盖率、价格敏感曲线和竞品对比可能不完整。" : ""
+    !selectedCompetitorsForPreview.length ? "缺少竞品会影响市场占比、竞品分析和价格敏感曲线。" : ""
   ].filter(Boolean);
 
   async function selectAllCompetitors() {
@@ -3533,8 +4248,8 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
             product_definition: project?.product_definition || {},
             market_config: market,
             crowd_templates: crowds,
-            strategy_templates: strategies,
-            scene_templates: scenes,
+            strategy_templates: strategyTemplateOptions,
+            scene_templates: sceneTemplateOptions,
             competitor_count: market.competitors.length,
             plan_type: currentPlan
           }}
@@ -3629,7 +4344,24 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                             <Row gutter={8}>
                               <Col span={12}>
                                 <Form.Item label="年龄段">
-                                  <Select allowClear value={activeCrowdProfile.age_range || undefined} onChange={(value) => updateCrowdProfile({ age_range: value || "" })} options={ageRangeOptions} />
+                                  <Space.Compact className="w-full">
+                                    <InputNumber
+                                      className="w-full"
+                                      min={0}
+                                      max={100}
+                                      placeholder="下限"
+                                      value={activeAgeRange.min ?? undefined}
+                                      onChange={(value) => updateCrowdAgeRange("min", value === null ? null : Number(value))}
+                                    />
+                                    <InputNumber
+                                      className="w-full"
+                                      min={0}
+                                      max={100}
+                                      placeholder="上限"
+                                      value={activeAgeRange.max ?? undefined}
+                                      onChange={(value) => updateCrowdAgeRange("max", value === null ? null : Number(value))}
+                                    />
+                                  </Space.Compact>
                                 </Form.Item>
                               </Col>
                               <Col span={12}>
@@ -3674,14 +4406,49 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                   label: "场景",
                   children: (
                     <Form layout="vertical" className="market-module-form">
-                      <Form.Item label="使用场景" required>
-                        <Select
-                          value={market.scene || undefined}
-                          placeholder="选择场景"
-                          onChange={(value) => setMarket((current) => ({ ...current, scene: value }))}
-                          options={scenes.map((item) => ({ value: item.name, label: item.name }))}
-                        />
+                      <Form.Item label={isProPlan ? "使用场景组合" : "使用场景"} required>
+                        {isProPlan ? (
+                          <Select
+                            mode="multiple"
+                            value={selectedScenes}
+                            placeholder="选择一个或多个场景"
+                            onChange={handleSceneChange}
+                            options={sceneSelectOptions}
+                          />
+                        ) : (
+                          <Select
+                            value={market.scene || undefined}
+                            placeholder="选择场景"
+                            onChange={handleSceneChange}
+                            options={sceneSelectOptions}
+                          />
+                        )}
                       </Form.Item>
+                      {selectedScenes.length > 0 && (
+                        <List
+                          size="small"
+                          className="selected-detail-list"
+                          dataSource={selectedScenes}
+                          renderItem={(name) => (
+                            <List.Item
+                              actions={[
+                                <Button
+                                  key="detail"
+                                  type="link"
+                                  size="small"
+                                  className="inline-detail-link"
+                                  icon={<QuestionCircleOutlined />}
+                                  onClick={() => openSceneDetail(name)}
+                                  aria-label={`编辑${name}场景详情`}
+                                  title="编辑场景详情"
+                                />
+                              ]}
+                            >
+                              <Text>{name}</Text>
+                            </List.Item>
+                          )}
+                        />
+                      )}
                       <Alert type="info" showIcon message="场景会影响用户关注点和购买动机，例如通勤、家庭照护、户外露营、礼品采购等。" />
                     </Form>
                   )
@@ -3697,18 +4464,81 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                             mode="multiple"
                             value={selectedStrategies}
                             placeholder="选择一个或多个策略"
-                            onChange={(values) => setMarket((current) => ({ ...current, strategies: stringArray(values), strategy: textValue(values[0]) }))}
-                            options={strategies.map((item) => ({ value: item.name, label: item.name }))}
+                            onChange={handleStrategyChange}
+                            options={strategySelectOptions}
                           />
                         ) : (
                           <Select
                             value={market.strategy || undefined}
                             placeholder="选择策略"
-                            onChange={(value) => setMarket((current) => ({ ...current, strategy: value, strategies: [value] }))}
-                            options={strategies.map((item) => ({ value: item.name, label: item.name }))}
+                            onChange={handleStrategyChange}
+                            options={strategySelectOptions}
                           />
                         )}
                       </Form.Item>
+                      {selectedStrategies.length > 0 && (
+                        <List
+                          size="small"
+                          className="selected-detail-list"
+                          dataSource={selectedStrategies}
+                          renderItem={(name) => (
+                            <List.Item
+                              actions={[
+                                <Button
+                                  key="detail"
+                                  type="link"
+                                  size="small"
+                                  className="inline-detail-link"
+                                  icon={<QuestionCircleOutlined />}
+                                  onClick={() => openStrategyDetail(name)}
+                                  aria-label={`编辑${name}策略详情`}
+                                  title="编辑策略详情"
+                                />
+                              ]}
+                            >
+                              <Text>{name}</Text>
+                            </List.Item>
+                          )}
+                        />
+                      )}
+                      <Form.Item label="渠道决策权重模板">
+                        <Segmented
+                          block
+                          value={textValue(recordValue(market.decision_weight_profile).template || "default")}
+                          options={[
+                            { label: "默认", value: "default" },
+                            { label: "抖音", value: "douyin" },
+                            { label: "天猫", value: "tmall" },
+                            { label: "线下高端", value: "offline_premium" },
+                            { label: "自定义", value: "custom" }
+                          ]}
+                          onChange={(value) => setMarket((current) => ({
+                            ...current,
+                            decision_weight_profile: {
+                              template: textValue(value),
+                              ...(textValue(value) === "custom" ? { weights: recordValue(current.decision_weight_profile).weights || DEFAULT_DECISION_WEIGHTS } : {})
+                            }
+                          }))}
+                        />
+                      </Form.Item>
+                      {textValue(recordValue(market.decision_weight_profile).template) === "custom" && (
+                        <Card size="small" className="nested-card mb-16" title="自定义五维权重（保存时自动归一化）">
+                          {Object.entries(DECISION_WEIGHT_LABELS).map(([key, label]) => {
+                            const profile = recordValue(market.decision_weight_profile);
+                            const weights = recordValue(profile.weights || DEFAULT_DECISION_WEIGHTS);
+                            return (
+                              <Row key={key} gutter={12} align="middle">
+                                <Col span={6}><Text>{label}</Text></Col>
+                                <Col span={14}><Slider min={0} max={1} step={0.05} value={numberValue(weights[key], numberValue(DEFAULT_DECISION_WEIGHTS[key], 0))} onChange={(value) => setMarket((current) => {
+                                  const currentProfile = recordValue(current.decision_weight_profile);
+                                  return { ...current, decision_weight_profile: { ...currentProfile, template: "custom", weights: { ...recordValue(currentProfile.weights || DEFAULT_DECISION_WEIGHTS), [key]: value } } };
+                                })} /></Col>
+                                <Col span={4}><Text>{numberValue(weights[key], 0).toFixed(2)}</Text></Col>
+                              </Row>
+                            );
+                          })}
+                        </Card>
+                      )}
                       <Alert
                         type={isProPlan ? "success" : "info"}
                         showIcon
@@ -3747,6 +4577,15 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                         showIcon
                         message={isProPlan ? "专业版可全选当前品类/筛选结果内竞品；页面图表显示 Top N 汇总，表格和导出保留全量分析。" : "普通版最多选择 1 个竞品；升级后新建项目可使用多竞品分析。"}
                       />
+                      {priceFillQueued && (
+                        <Alert
+                          className="mb-16"
+                          type="info"
+                          showIcon
+                          message="部分竞品价格正在补全中"
+                          description="系统会尝试通过公开资料补齐候选竞品价格。您可以先继续配置，稍后刷新候选列表查看结果。"
+                        />
+                      )}
                       <Table
                         rowKey="id"
                         size="small"
@@ -3763,6 +4602,15 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                             setMarket((current) => ({ ...current, competitors: isProPlan ? selectedRows : selectedRows.slice(0, 1) }));
                           }
                         }}
+                      />
+                      <Divider />
+                      <Text>全市场竞品数量假设：{numberValue(recordValue(market.market_assumptions).assumed_market_competitor_count, 20)}</Text>
+                      <Slider
+                        min={5}
+                        max={50}
+                        marks={{ 5: "5", 20: "20", 35: "35", 50: "50" }}
+                        value={numberValue(recordValue(market.market_assumptions).assumed_market_competitor_count, 20)}
+                        onChange={(value) => setMarket((current) => ({ ...current, market_assumptions: { ...recordValue(current.market_assumptions), assumed_market_competitor_count: value } }))}
                       />
                     </Card>
                   )
@@ -3792,6 +4640,29 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                           />
                         </div>
                       </Form.Item>
+                      <Row gutter={[16, 16]}>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="每轮外部流量注入">
+                            <InputNumber
+                              min={0}
+                              max={5000}
+                              value={numberValue(recordValue(market.social_propagation_config).external_traffic_per_round, Math.max(20, market.sample_size * 0.05))}
+                              onChange={(value) => setMarket((current) => ({ ...current, social_propagation_config: { ...recordValue(current.social_propagation_config), external_traffic_per_round: numberValue(value, 0) } }))}
+                            />
+                          </Form.Item>
+                        </Col>
+                        <Col xs={24} md={12}>
+                          <Form.Item label="场景裂变因子">
+                            <Slider
+                              min={0.5}
+                              max={2}
+                              step={0.05}
+                              value={numberValue(recordValue(market.social_propagation_config).scene_fission_factor, 1)}
+                              onChange={(value) => setMarket((current) => ({ ...current, social_propagation_config: { ...recordValue(current.social_propagation_config), scene_fission_factor: value } }))}
+                            />
+                          </Form.Item>
+                        </Col>
+                      </Row>
                       <Alert
                         type={isProPlan ? "success" : "info"}
                         showIcon
@@ -3836,7 +4707,7 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
             <Card size="small" className="nested-card mt-16" title="已选预览">
               <Descriptions column={1} size="small">
                 <Descriptions.Item label="人群">{market.crowd_segments.length ? `${market.crowd_segments.length} 类` : "-"}</Descriptions.Item>
-                <Descriptions.Item label="场景">{market.scene || "-"}</Descriptions.Item>
+                <Descriptions.Item label="场景">{selectedScenes.length ? selectedScenes.join("、") : "-"}</Descriptions.Item>
                 <Descriptions.Item label="策略">{selectedStrategies.length ? selectedStrategies.join("、") : "-"}</Descriptions.Item>
                 <Descriptions.Item label="竞品">{selectedCompetitorsForPreview.length} 个</Descriptions.Item>
                 <Descriptions.Item label="样本量">{isProPlan ? numberValue(market.sample_size, 10000) : 1000}</Descriptions.Item>
@@ -3861,20 +4732,17 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                   dataSource={selectedCompetitorsForPreview.slice(0, 5)}
                   renderItem={(item) => (
                     <List.Item>
-                      <Text ellipsis>{[textValue(item.brand), competitorDisplayName(item)].filter(Boolean).join(" ")}</Text>
+                      <Space size={6}>{isCustomCompetitor(item) && <Tag color="purple">自定义竞品</Tag>}<Text ellipsis>{[textValue(item.brand), competitorDisplayName(item)].filter(Boolean).join(" ")}</Text></Space>
                     </List.Item>
                   )}
                 />
               )}
               {selectedCompetitorsForPreview.length > 5 && <Text type="secondary">还有 {selectedCompetitorsForPreview.length - 5} 个竞品未展开显示。</Text>}
-              {missingCompetitorPriceCount > 0 && (
-                <Alert
-                  className="mt-16"
-                  type="warning"
-                  showIcon
-                  message={`有 ${missingCompetitorPriceCount} 个竞品未填写价格`}
-                  description={`仍可继续保存，但价格敏感曲线、价格覆盖率和竞品价格结论可能不完整。竞品数据不符合您的需要？请联系客服 18960333566。`}
-                />
+              {(customCompetitorGapCount > 0 || catalogMissingPriceCount > 0) && (
+                <Text type="secondary" className="tiny-price-note">
+                  {customCompetitorGapCount > 0 ? `${customCompetitorGapCount} 个自定义竞品存在品牌或价格信息缺口。` : ""}
+                  {catalogMissingPriceCount > 0 ? `${catalogMissingPriceCount} 个产品库竞品价格待补充。` : ""}
+                </Text>
               )}
             </Card>
           </Col>
@@ -3895,6 +4763,13 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
         okText="添加竞品"
         cancelText="取消"
       >
+        <Alert
+          className="mb-16"
+          type="info"
+          showIcon
+          message="以下内容将作为自定义竞品保存"
+          description="品牌或价格可以暂时留空，但系统会在配置页和报告中明确标记为“自定义竞品信息缺口”，不会与产品库竞品缺价混淆。"
+        />
         <Form layout="vertical">
           <Form.Item label="竞品名称" required>
             <Input
@@ -3925,6 +4800,179 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
             showIcon
             message="如果暂时没有价格，可以先留空；只要有竞品名称，系统会保留该竞品，并在后续分析中提示价格证据不足。"
           />
+        </Form>
+      </Modal>
+      <Modal
+        title="策略详情"
+        open={strategyDetailOpen}
+        onCancel={() => setStrategyDetailOpen(false)}
+        onOk={submitStrategyDetail}
+        okText="保存详情"
+        cancelText="取消"
+      >
+        <Form layout="vertical">
+          <Form.Item label="策略名称" required>
+            <Input
+              value={strategyDetailDraft.name}
+              placeholder="例如：高端品牌策略"
+              onChange={(event) => setStrategyDetailDraft((current) => ({ ...current, name: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="目标客群">
+            <Input
+              value={strategyDetailDraft.target_crowd}
+              placeholder="例如：一线城市高收入用户"
+              onChange={(event) => setStrategyDetailDraft((current) => ({ ...current, target_crowd: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="核心卖点">
+            <Input
+              value={strategyDetailDraft.core_selling_points}
+              placeholder="用逗号分隔，例如：耐用，售后，节能"
+              onChange={(event) => setStrategyDetailDraft((current) => ({ ...current, core_selling_points: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="触达渠道">
+            <Input
+              value={strategyDetailDraft.channels}
+              placeholder="用逗号分隔，例如：电商平台，门店导购，短视频"
+              onChange={(event) => setStrategyDetailDraft((current) => ({ ...current, channels: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="优惠/权益">
+            <Input
+              value={strategyDetailDraft.benefit}
+              placeholder="例如：延保、以旧换新、会员服务"
+              onChange={(event) => setStrategyDetailDraft((current) => ({ ...current, benefit: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="执行动作">
+            <Input.TextArea
+              rows={2}
+              value={strategyDetailDraft.actions}
+              placeholder="用逗号分隔，例如：强调耐用测试，展示用户口碑，绑定售后权益"
+              onChange={(event) => setStrategyDetailDraft((current) => ({ ...current, actions: event.target.value }))}
+            />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item label="预算强度">
+                <Select
+                  allowClear
+                  value={strategyDetailDraft.budget_intensity || undefined}
+                  placeholder="选择预算强度"
+                  onChange={(value) => setStrategyDetailDraft((current) => ({ ...current, budget_intensity: value || "" }))}
+                  options={[
+                    { value: "低", label: "低" },
+                    { value: "中", label: "中" },
+                    { value: "高", label: "高" }
+                  ]}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="风险说明">
+                <Input
+                  value={strategyDetailDraft.risk_note}
+                  placeholder="例如：预算消耗较快"
+                  onChange={(event) => setStrategyDetailDraft((current) => ({ ...current, risk_note: event.target.value }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Card size="small" className="nested-card" title="可选成本信息">
+            <Row gutter={12}>
+              <Col xs={24} md={12}>
+                <Form.Item label="基础毛利率（%）">
+                  <InputNumber min={0} max={100} precision={1} className="w-full" value={strategyDetailDraft.gross_margin_pct === "" ? null : Number(strategyDetailDraft.gross_margin_pct)} onChange={(value) => setStrategyDetailDraft((current) => ({ ...current, gross_margin_pct: value === null ? "" : String(value) }))} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="让利比例（%）">
+                  <InputNumber min={0} max={100} precision={1} className="w-full" value={strategyDetailDraft.discount_pct === "" ? null : Number(strategyDetailDraft.discount_pct)} onChange={(value) => setStrategyDetailDraft((current) => ({ ...current, discount_pct: value === null ? "" : String(value) }))} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="单笔推广成本（元）">
+                  <InputNumber min={0} precision={2} className="w-full" value={strategyDetailDraft.unit_promotion_cost_cny === "" ? null : Number(strategyDetailDraft.unit_promotion_cost_cny)} onChange={(value) => setStrategyDetailDraft((current) => ({ ...current, unit_promotion_cost_cny: value === null ? "" : String(value) }))} />
+                </Form.Item>
+              </Col>
+              <Col xs={24} md={12}>
+                <Form.Item label="总预算（元）">
+                  <InputNumber min={0} precision={2} className="w-full" value={strategyDetailDraft.total_budget_cny === "" ? null : Number(strategyDetailDraft.total_budget_cny)} onChange={(value) => setStrategyDetailDraft((current) => ({ ...current, total_budget_cny: value === null ? "" : String(value) }))} />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Text type="secondary">成本字段均为可选项；填写越完整，成本压力和商业可行性判断越精确。未填写时使用专家策略先验和场景匹配。</Text>
+          </Card>
+        </Form>
+      </Modal>
+      <Modal
+        title="场景详情"
+        open={sceneDetailOpen}
+        onCancel={() => setSceneDetailOpen(false)}
+        onOk={submitSceneDetail}
+        okText="保存详情"
+        cancelText="取消"
+      >
+        <Form layout="vertical">
+          <Form.Item label="场景名称" required>
+            <Input
+              value={sceneDetailDraft.name}
+              placeholder="例如：家庭日常清洁"
+              onChange={(event) => setSceneDetailDraft((current) => ({ ...current, name: event.target.value }))}
+            />
+          </Form.Item>
+          <Row gutter={12}>
+            <Col span={12}>
+              <Form.Item label="使用地点">
+                <Input
+                  value={sceneDetailDraft.place}
+                  placeholder="例如：厨房、客厅、户外营地"
+                  onChange={(event) => setSceneDetailDraft((current) => ({ ...current, place: event.target.value }))}
+                />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item label="使用频率">
+                <Input
+                  value={sceneDetailDraft.frequency}
+                  placeholder="例如：每天、每周 2-3 次"
+                  onChange={(event) => setSceneDetailDraft((current) => ({ ...current, frequency: event.target.value }))}
+                />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item label="购买触发点">
+            <Input
+              value={sceneDetailDraft.purchase_trigger}
+              placeholder="例如：旧产品损坏、家庭升级、礼品采购"
+              onChange={(event) => setSceneDetailDraft((current) => ({ ...current, purchase_trigger: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="核心痛点">
+            <Input.TextArea
+              rows={2}
+              value={sceneDetailDraft.pain_point}
+              placeholder="例如：噪音、清洁效率、售后成本、老人使用难度"
+              onChange={(event) => setSceneDetailDraft((current) => ({ ...current, pain_point: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="决策参与者">
+            <Input
+              value={sceneDetailDraft.decision_maker}
+              placeholder="例如：本人、配偶、父母、采购负责人"
+              onChange={(event) => setSceneDetailDraft((current) => ({ ...current, decision_maker: event.target.value }))}
+            />
+          </Form.Item>
+          <Form.Item label="备注">
+            <Input.TextArea
+              rows={2}
+              value={sceneDetailDraft.note}
+              placeholder="补充该场景下用户最在意的信息"
+              onChange={(event) => setSceneDetailDraft((current) => ({ ...current, note: event.target.value }))}
+            />
+          </Form.Item>
         </Form>
       </Modal>
     </AppShell>
@@ -4018,7 +5066,16 @@ function Step3Simulate({ user, onLogout, onUserChange }: { user: User; onLogout:
 
   const stages = listItems<JsonObject>(task.stages);
   const percent = clamp(numberValue(task.percent, project?.status === "completed" ? 100 : 0), 0, 100);
-  const currentStatus = normalizedStatus(displayTaskStatus());
+  const projectStatus = normalizedStatus(project?.status);
+  const taskStatus = normalizedStatus(displayTaskStatus());
+  const projectCompleted = projectStatus === "completed";
+  const currentStatus = projectCompleted
+    ? "completed"
+    : projectStatus === "report_waiting"
+      ? "report_waiting"
+      : taskStatus === "completed"
+        ? "running"
+        : taskStatus;
   const queueDiagnostics = (task.queue_diagnostics || {}) as JsonObject;
   const currentPlan = projectPlan(project, user);
   const workerHeartbeatCount = Number(queueStatus.worker_heartbeat_count ?? queueDiagnostics.worker_heartbeat_count ?? 0);
@@ -4283,7 +5340,7 @@ function MetricCards({ report }: { report: JsonObject }) {
       </Col>
       <Col xs={24} sm={12} lg={6}>
         <Card className="metric-card">
-          <Statistic title="预估市场份额" value={Number(overview.estimated_market_share ?? 0)} precision={1} suffix="%" />
+          <Statistic title="仿真环境份额" value={Number(overview.estimated_market_share ?? 0)} precision={1} suffix="%" />
         </Card>
       </Col>
       <Col xs={24} sm={12} lg={6}>
@@ -4335,7 +5392,8 @@ function PurchaseIntentChart({ report }: { report: JsonObject }) {
 }
 
 function MarketShareChart({ report }: { report: JsonObject }) {
-  const rows = chartRows(getChartData(report).market_share);
+  const productName = reportProductName(report);
+  const rows = selfFirstChartRows(chartRows(getChartData(report).market_share), productName);
   if (!rows.length) return <ChartMissingNotice kind="market" />;
   const option = {
     ...chartBase(),
@@ -4364,7 +5422,15 @@ function MarketShareChart({ report }: { report: JsonObject }) {
         center: ["43%", "39%"],
         avoidLabelOverlap: true,
         minShowLabelAngle: 5,
-        data: rows.map((item) => ({ name: chartName(item.name, 10), fullName: textValue(item.name), value: Number(item.share ?? item.value ?? 0) })),
+        data: rows.map((item) => {
+          const self = isSelfChartItem(item, productName);
+          return {
+            name: self ? `本品：${chartName(item.name, 8)}` : chartName(item.name, 10),
+            fullName: textValue(item.name),
+            value: Number(item.share ?? item.value ?? 0),
+            itemStyle: self ? { color: SELF_CHART_COLOR, borderColor: "#ffffff", borderWidth: 1 } : undefined
+          };
+        }),
         label: { color: CHART_TEXT_COLOR, alignTo: "edge", edgeDistance: 8, formatter: "{b}\n{d}%", width: 86, overflow: "truncate" },
         labelLine: { length: 8, length2: 10, maxSurfaceAngle: 80 },
         labelLayout: { hideOverlap: true, moveOverlap: "shiftY" }
@@ -4372,6 +5438,39 @@ function MarketShareChart({ report }: { report: JsonObject }) {
     ]
   };
   return <ReactECharts className="chart" option={option} notMerge lazyUpdate />;
+}
+
+function MarketShareSandbox({ report }: { report: JsonObject }) {
+  const chart = getChartData(report);
+  const scope = ((report.market_share_scope || chart.market_share_scope || {}) as JsonObject) || {};
+  const scenarios = chartRows(report.market_share_scenarios || chart.market_share_scenarios);
+  const initialCount = Math.max(5, Math.min(50, Number(scope.assumed_market_competitor_count || 20)));
+  const [competitorCount, setCompetitorCount] = useState(initialCount);
+  const selected = scenarios.find((item) => Number(item.competitor_count) === competitorCount) || {};
+  if (!scenarios.length) return null;
+  const option = {
+    ...chartBase(),
+    tooltip: { ...(chartBase().tooltip as JsonObject), trigger: "axis", formatter: chartTooltipFormatter("%") },
+    grid: { left: 48, right: 24, top: 24, bottom: 48, containLabel: true },
+    xAxis: chartAxis({ type: "category", data: scenarios.map((item) => item.competitor_count) }),
+    yAxis: chartAxis({ type: "value", min: 0, max: Math.ceil(Number(scope.simulation_environment_share || 20) / 5) * 5 }),
+    series: [{ type: "line", smooth: true, name: "情景换算份额", data: scenarios.map((item) => Number(item.share || 0)), symbol: "none", lineStyle: { width: 3 } }]
+  };
+  return (
+    <Card className="nested-card" title="竞品数量沙盘">
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={8}><Statistic title="仿真环境份额" value={Number(scope.simulation_environment_share || 0)} precision={1} suffix="%" /></Col>
+        <Col xs={24} md={8}><Statistic title={"竞品情景（" + competitorCount + " 个）"} value={Number(selected.share || 0)} precision={1} suffix="%" /></Col>
+        <Col xs={24} md={8}><Statistic title="相对竞争力 RCI" value={Number(scope.relative_competitiveness_index || 0)} precision={2} /></Col>
+      </Row>
+      <div className="mt-16">
+        <Text>假设全市场竞品数量：{competitorCount}</Text>
+        <Slider min={5} max={50} value={competitorCount} onChange={setCompetitorCount} marks={{ 5: "5", 20: "20", 35: "35", 50: "50" }} />
+      </div>
+      <ReactECharts className="chart compact-chart" option={option} notMerge lazyUpdate />
+      <Alert type="info" showIcon message="口径说明" description={textValue(scope.disclaimer || "该数值为竞品数量变化下的情景换算，不是销量预测。")} />
+    </Card>
+  );
 }
 
 function ParamImportanceChart({ report }: { report: JsonObject }) {
@@ -4422,9 +5521,7 @@ function PriceSensitivityChart({ report }: { report: JsonObject }) {
 }
 
 function StrategyRoiChart({ report }: { report: JsonObject }) {
-  const rows = chartRows(getChartData(report).strategy_roi).length
-    ? chartRows(getChartData(report).strategy_roi)
-    : chartRows(report.strategy_roi);
+  const rows = strategyRoiRows(report);
   if (!rows.length) return <ChartMissingNotice kind="strategy" />;
   const option = {
     ...chartBase(),
@@ -4446,9 +5543,7 @@ function StrategyRoiChart({ report }: { report: JsonObject }) {
 }
 
 function ChannelEffectChart({ report }: { report: JsonObject }) {
-  const rows = chartRows(getChartData(report).channel_effect).length
-    ? chartRows(getChartData(report).channel_effect)
-    : chartRows(report.channel_effect);
+  const rows = channelEffectRows(report);
   if (!rows.length) return <ChartMissingNotice kind="strategy" />;
   const option = {
     ...chartBase(),
@@ -4497,6 +5592,52 @@ function SocialEvolutionChart({ report }: { report: JsonObject }) {
   return <ReactECharts className="chart" option={option} notMerge lazyUpdate />;
 }
 
+function PropagationSankeyChart({ report }: { report: JsonObject }) {
+  const funnel = (report.propagation_funnel || {}) as JsonObject;
+  const nodes = chartRows(funnel.nodes);
+  const links = chartRows(funnel.links);
+  if (!nodes.length || !links.length) return <ChartMissingNotice kind="social" />;
+  const option = {
+    ...chartBase(),
+    tooltip: { ...(chartBase().tooltip as JsonObject), trigger: "item" },
+    series: [{
+      type: "sankey",
+      data: nodes,
+      links,
+      left: 18,
+      right: 24,
+      top: 18,
+      bottom: 20,
+      nodeWidth: 18,
+      nodeGap: 14,
+      emphasis: { focus: "adjacency" },
+      lineStyle: { color: "gradient", curveness: 0.5, opacity: 0.45 },
+      label: { color: CHART_TEXT_COLOR }
+    }]
+  };
+  return <ReactECharts className="chart" option={option} notMerge lazyUpdate />;
+}
+
+function SentimentEvolutionChart({ report }: { report: JsonObject }) {
+  const funnel = (report.propagation_funnel || {}) as JsonObject;
+  const rows = chartRows(funnel.sentiment_evolution);
+  if (!rows.length) return <ChartMissingNotice kind="social" />;
+  const option = {
+    ...chartBase(),
+    tooltip: { ...(chartBase().tooltip as JsonObject), trigger: "axis" },
+    legend: { bottom: 0 },
+    grid: { left: 44, right: 22, top: 24, bottom: 48, containLabel: true },
+    xAxis: chartAxis({ type: "category", data: rows.map((row) => `第 ${row.round} 轮`) }),
+    yAxis: chartAxis({ type: "value", min: 0, max: 100 }),
+    series: [
+      { type: "line", name: "正面", data: rows.map((row) => Number(row.positive || 0)), smooth: true, lineStyle: { color: "#52a36b" } },
+      { type: "line", name: "中性", data: rows.map((row) => Number(row.neutral || 0)), smooth: true, lineStyle: { color: "#d6a84b" } },
+      { type: "line", name: "负面", data: rows.map((row) => Number(row.negative || 0)), smooth: true, lineStyle: { color: "#d45d5d" } }
+    ]
+  };
+  return <ReactECharts className="chart" option={option} notMerge lazyUpdate />;
+}
+
 function SensitivityWaterfallChart({ report }: { report: JsonObject }) {
   const rows = chartRows(getChartData(report).sensitivity_waterfall);
   if (!rows.length) return <ChartMissingNotice kind="sensitivity" />;
@@ -4522,7 +5663,8 @@ function SensitivityWaterfallChart({ report }: { report: JsonObject }) {
 function CompetitorRadarChart({ report }: { report: JsonObject }) {
   const radar = getChartData(report).competitor_radar as JsonObject | undefined;
   const dimensions = Array.isArray(radar?.dimensions) ? (radar.dimensions as unknown[]) : [];
-  const series = Array.isArray(radar?.series) ? (radar.series as JsonObject[]) : [];
+  const productName = reportProductName(report);
+  const series = selfFirstChartRows(Array.isArray(radar?.series) ? (radar.series as JsonObject[]) : [], productName);
   if (!dimensions.length || !series.length) return <ChartMissingNotice kind="competitor" />;
   const option = {
     ...chartBase(),
@@ -4547,7 +5689,17 @@ function CompetitorRadarChart({ report }: { report: JsonObject }) {
     series: [
       {
         type: "radar",
-        data: series.map((item) => ({ name: chartName(item.name, 12), fullName: textValue(item.name), value: Array.isArray(item.values) ? item.values : [] }))
+        data: series.map((item) => {
+          const self = isSelfChartItem(item, productName);
+          return {
+            name: self ? `本品：${chartName(item.name, 8)}` : chartName(item.name, 12),
+            fullName: textValue(item.name),
+            value: Array.isArray(item.values) ? item.values : [],
+            lineStyle: self ? { color: SELF_CHART_COLOR, width: 3 } : { width: 2 },
+            itemStyle: self ? { color: SELF_CHART_COLOR } : undefined,
+            areaStyle: self ? { color: SELF_CHART_LIGHT } : undefined
+          };
+        })
       }
     ]
   };
@@ -4566,6 +5718,9 @@ function ReportChartGrid({ report, pro }: { report: JsonObject; pro: boolean }) 
         <ChartCard title="购买意愿">
           <PurchaseIntentChart report={report} />
         </ChartCard>
+      </Col>
+      <Col xs={24}>
+        <MarketShareSandbox report={report} />
       </Col>
       <Col xs={24} lg={12}>
         <ChartCard title="功能重要性">
@@ -4592,6 +5747,53 @@ function ReportChartGrid({ report, pro }: { report: JsonObject; pro: boolean }) 
         </>
       )}
     </Row>
+  );
+}
+
+function ConfidenceRadar({ rows }: { rows: JsonObject[] }) {
+  if (!rows.length) return null;
+  const option = {
+    ...chartBase(),
+    tooltip: { ...(chartBase().tooltip as JsonObject) },
+    radar: {
+      indicator: rows.map((item) => ({ name: textValue(item.label), max: 100 })),
+      radius: "58%",
+      axisName: { color: CHART_TEXT_COLOR },
+      splitLine: { lineStyle: { color: CHART_GRID_COLOR } },
+      splitArea: { areaStyle: { color: ["rgba(202,224,244,0.16)", "rgba(227,216,230,0.16)"] } }
+    },
+    series: [{ type: "radar", data: [{ name: "证据置信度", value: rows.map((item) => Number(item.score || 0) * 100), areaStyle: { color: SELF_CHART_LIGHT }, lineStyle: { color: SELF_CHART_COLOR, width: 3 } }] }]
+  };
+  return <ReactECharts className="chart compact-chart" option={option} notMerge lazyUpdate />;
+}
+
+function ChannelScenarioPanel({ report, decisionModel }: { report: JsonObject; decisionModel: JsonObject }) {
+  const rows = chartRows(report.channel_scenarios || decisionModel.channel_scenarios);
+  if (!rows.length) return null;
+  return (
+    <Card className="nested-card" title="渠道场景推演">
+      <Alert className="mb-16" type="info" showIcon message="以下结果只重算五维权重，不重新调用 RAG、LLM 或 Agent；正式结果保持不变。" />
+      <Tabs
+        items={rows.map((row) => ({
+          key: textValue(row.template),
+          label: textValue(row.label || row.template),
+          children: (
+            <Row gutter={[16, 16]} align="middle">
+              <Col xs={24} md={7}><Statistic title="情景购买意愿" value={Number(row.purchase_intent || 0)} precision={1} suffix="%" /></Col>
+              <Col xs={24} md={17}>
+                <Descriptions size="small" column={{ xs: 2, md: 5 }}>
+                  {Object.entries((row.weights || {}) as JsonObject).map(([key, value]) => (
+                    <Descriptions.Item key={key} label={textValue(((decisionModel.dimension_scores || {}) as JsonObject)[key] ? (((decisionModel.dimension_scores || {}) as JsonObject)[key] as JsonObject).label : key)}>
+                      {(Number(value || 0) * 100).toFixed(0)}%
+                    </Descriptions.Item>
+                  ))}
+                </Descriptions>
+              </Col>
+            </Row>
+          )
+        }))}
+      />
+    </Card>
   );
 }
 
@@ -4633,7 +5835,7 @@ function MautAnalysis({ report }: { report: JsonObject }) {
         <div className="formula-block" aria-label="购买意愿公式">
           <span className="formula-name">购买意愿</span>
           <span>=</span>
-          <span>100 × clip(0.30 × S<sub>f</sub> + 0.25 × S<sub>p</sub> + 0.10 × B<sub>pr</sub> + 0.15 × B<sub>b</sub> + 0.20 × S<sub>s</sub>)</span>
+          <span>{textValue(decisionModel.formula_resolved || "100 × clip(0.30 × S_f + 0.25 × S_p + 0.10 × B_pr + 0.15 × B_b + 0.20 × S_s)")}</span>
         </div>
       </Card>
       <Row gutter={[16, 16]}>
@@ -4655,18 +5857,21 @@ function MautAnalysis({ report }: { report: JsonObject }) {
               <span>0.40 × C<sub>logic</sub> + 0.25 × C<sub>price</sub> + 0.20 × C<sub>rag</sub> + 0.15 × C<sub>profile</sub></span>
             </div>
             {confidenceRows.length > 0 && (
-              <Table
-                className="mb-16"
-                size="small"
-                pagination={false}
-                rowKey="key"
-                dataSource={confidenceRows}
-                columns={[
-                  { title: "分项", dataIndex: "label" },
-                  { title: "得分", dataIndex: "score", render: (value) => `${(Number(value || 0) * 100).toFixed(1)}%` },
-                  { title: "权重", dataIndex: "weight", render: (value) => `${(Number(value || 0) * 100).toFixed(0)}%` }
-                ]}
-              />
+              <>
+                <ConfidenceRadar rows={confidenceRows} />
+                <Table
+                  className="mb-16"
+                  size="small"
+                  pagination={false}
+                  rowKey="key"
+                  dataSource={confidenceRows}
+                  columns={[
+                    { title: "分项", dataIndex: "label" },
+                    { title: "得分", dataIndex: "score", render: (value) => `${(Number(value || 0) * 100).toFixed(1)}%` },
+                    { title: "权重", dataIndex: "weight", render: (value) => `${(Number(value || 0) * 100).toFixed(0)}%` }
+                  ]}
+                />
+              </>
             )}
             <List
               size="small"
@@ -4708,12 +5913,14 @@ function MautAnalysis({ report }: { report: JsonObject }) {
           </Card>
         </Col>
       </Row>
+      <ChannelScenarioPanel report={report} decisionModel={decisionModel} />
     </Space>
   );
 }
 
 function SocialPropagationAnalysis({ report, pro }: { report: JsonObject; pro: boolean }) {
   const social = (report.social_simulation || {}) as JsonObject;
+  const funnel = (report.propagation_funnel || {}) as JsonObject;
   const rounds = chartRows(social.round_summaries);
   if (!rounds.length) {
     return <ChartMissingNotice kind="social" />;
@@ -4736,6 +5943,20 @@ function SocialPropagationAnalysis({ report, pro }: { report: JsonObject; pro: b
       <ChartCard title={pro ? "整体与分客群购买意愿演化" : "整体购买意愿演化"}>
         <SocialEvolutionChart report={report} />
       </ChartCard>
+      {Array.isArray(funnel.links) && funnel.links.length > 0 && (
+        <>
+          <Alert
+            type="info"
+            showIcon
+            message="营销漏斗传播情景"
+            description={`每轮外部流量 ${Number(funnel.external_traffic_per_round || 0)}，场景裂变因子 ${Number(funnel.scene_fission_factor || 1).toFixed(2)}；该结果是可解释情景推演，不代表实际投放承诺。`}
+          />
+          <Row gutter={[16, 16]}>
+            <Col xs={24} lg={14}><ChartCard title="曝光 → 兴趣 → 购买 → 推荐"><PropagationSankeyChart report={report} /></ChartCard></Col>
+            <Col xs={24} lg={10}><ChartCard title="舆情风向演化"><SentimentEvolutionChart report={report} /></ChartCard></Col>
+          </Row>
+        </>
+      )}
       {pro && (
         <Card className="nested-card" title="传播轮次摘要">
           <Table
@@ -4774,12 +5995,16 @@ function ReportNarrative({ report }: { report: JsonObject }) {
   const weak = [...rows].sort((a, b) => Number(a.weighted_contribution || 0) - Number(b.weighted_contribution || 0))[0];
   const confidence = ((aggregation.confidence || {}) as JsonObject) || {};
   const priceCoverage = ((aggregation.evidence_quality || report.data_quality || {}) as JsonObject).price_coverage_pct;
+  const marketScope = ((report.market_share_scope || chart.market_share_scope || {}) as JsonObject);
   return (
     <Card className="nested-card" title="报告解读">
       <Space direction="vertical" size={10} className="w-full">
         <Paragraph>
           本轮仿真得到的购买意愿指数为 <Text strong>{pct(overview.purchase_intent_index ?? Number(aggregation.purchase_intent_avg || 0) * 100)}</Text>，
-          规则化预估市场份额为 <Text strong>{pct(overview.estimated_market_share)}</Text>。这个份额来自 Agent 购买决策和竞品相对吸引力归一计算，不由大模型直接编造。
+          仿真环境份额为 <Text strong>{pct(overview.estimated_market_share)}</Text>。这是本品与本轮已选竞品的封闭归一化结果，不代表真实全市场份额预测。
+          {marketScope.full_market_scenario_share !== undefined && (
+            <> 按 {textValue(marketScope.assumed_market_competitor_count)} 个竞品换算的全市场情景份额为 <Text strong>{pct(marketScope.full_market_scenario_share)}</Text>，RCI 为 <Text strong>{Number(marketScope.relative_competitiveness_index || 0).toFixed(2)}</Text>。</>
+          )}
         </Paragraph>
         <Paragraph>
           五维拆解中，<Text strong>{textValue(top?.label || "功能匹配度")}</Text> 是当前最强支撑项，
@@ -4933,29 +6158,64 @@ function StrategyAnalysis({ report }: { report: JsonObject }) {
   const structuredRecommendations = recommendations.filter((item) => item.structured);
   const plainRecommendations = recommendations.filter((item) => !item.structured);
   const evidence = chartRows(report.market_strategy_evidence);
-  const strategyRowsData = chartRows(getChartData(report).strategy_roi).length
-    ? chartRows(getChartData(report).strategy_roi)
-    : chartRows(report.strategy_roi);
+  const strategyRowsData = strategyRoiRows(report);
+  const chart = getChartData(report);
+  const channelRowsData = channelEffectRows(report);
+  const audits = recordValue(report.differentiation_audit || chart.differentiation_audit);
+  const strategyAudit = recordValue(audits.strategy_roi);
+  const channelAudit = recordValue(audits.channel_effect);
+  const strategyRankingUnavailable = textValue(strategyAudit.status) === "tied";
+  const channelRankingUnavailable = textValue(channelAudit.status) === "tied";
+  const boundaries = recordValue(report.simulation_boundaries || chart.simulation_boundaries);
+  const commercialModelEnabled = textValue(report.commercial_model_version || chart.commercial_model_version) === "commercial_differentiation_v1";
+  const configuredStrategies = configuredStrategyNames(report);
+  const hasConfiguredStrategy = configuredStrategies.length > 0 || strategyRowsData.length > 0 || structuredRecommendations.length > 0 || plainRecommendations.length > 0;
+  const plainAdviceItems = plainRecommendations.length
+    ? plainRecommendations.map((item) => item.strategy)
+    : !structuredRecommendations.length && hasConfiguredStrategy
+      ? ["已根据您填写的营销策略生成低置信度模拟建议；后续可补充渠道、预算和权益细节以提升报告解释力。"]
+      : [];
   return (
     <Space direction="vertical" size={16} className="w-full">
+      {Boolean(boundaries.expert_strategy_note || boundaries.simulation_roi_note) && (
+        <Paragraph type="secondary" className="muted-block">
+          {textValue(boundaries.expert_strategy_note)} {textValue(boundaries.simulation_roi_note)}
+        </Paragraph>
+      )}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <ChartCard title="策略 ROI">
-            <StrategyRoiChart report={report} />
+            {strategyRankingUnavailable
+              ? <Alert type="warning" showIcon message="当前输入不足，暂不形成策略排名" description={textValue(strategyAudit.explanation)} />
+              : <StrategyRoiChart report={report} />}
           </ChartCard>
         </Col>
         <Col xs={24} lg={12}>
           <ChartCard title="渠道贡献">
-            <ChannelEffectChart report={report} />
+            {channelRankingUnavailable
+              ? <Alert type="warning" showIcon message="当前输入不足，暂不形成渠道排名" description={textValue(channelAudit.explanation)} />
+              : <ChannelEffectChart report={report} />}
           </ChartCard>
         </Col>
       </Row>
+      {[strategyAudit, channelAudit].some((item) => ["close", "tied"].includes(textValue(item.status))) && (
+        <Alert
+          type="info"
+          showIcon
+          message="部分策略或渠道结果较为接近"
+          description={[strategyAudit, channelAudit].filter((item) => ["close", "tied"].includes(textValue(item.status))).map((item) => textValue(item.explanation)).join(" ")}
+        />
+      )}
       <Card className="nested-card" title="策略建议">
         {structuredRecommendations.length > 0 && (
           <div className="strategy-recommendation-list">
             {structuredRecommendations.map((item, index) => (
               <article className="strategy-recommendation-item" key={`${item.strategy}-${index}`}>
-                <Text strong>{item.strategy}</Text>
+                <Space wrap>
+                  <Text strong>{item.strategy}</Text>
+                  {item.recommendationPriority && <Tag color={item.recommendationPriority === "high" ? "success" : item.recommendationPriority === "low" ? "default" : "blue"}>{item.recommendationPriority === "high" ? "高优先级" : item.recommendationPriority === "low" ? "低优先级" : "条件推荐"}</Tag>}
+                  {item.commercialFeasibility === "cautious" && <Tag color="warning">谨慎策略</Tag>}
+                </Space>
                 {item.actions.length > 0 && (
                   <List
                     size="small"
@@ -4965,19 +6225,23 @@ function StrategyAnalysis({ report }: { report: JsonObject }) {
                   />
                 )}
                 {item.expectedImpact && <Paragraph className="strategy-impact">预期影响：{item.expectedImpact}</Paragraph>}
+                {item.expertBasis && <Paragraph type="secondary">专家依据：{item.expertBasis}</Paragraph>}
+                {item.applicableConditions.length > 0 && <Paragraph type="secondary">适用条件：{item.applicableConditions.join("；")}</Paragraph>}
+                {item.costRisk && <Alert type="warning" showIcon message={item.costRisk} />}
               </article>
             ))}
           </div>
         )}
-        <List
-          size="small"
-          dataSource={plainRecommendations.length
-            ? plainRecommendations.map((item) => item.strategy)
-            : structuredRecommendations.length
-              ? []
-              : ["建议补充渠道、促销和竞品价格证据后再形成正式投放方案。"]}
-          renderItem={(item) => <List.Item>{item}</List.Item>}
-        />
+        {plainAdviceItems.length > 0 && (
+          <List
+            size="small"
+            dataSource={plainAdviceItems}
+            renderItem={(item) => <List.Item>{item}</List.Item>}
+          />
+        )}
+        {!structuredRecommendations.length && !plainAdviceItems.length && (
+          <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="请先在 Step2 选择或补充营销策略，保存并重新运行后生成策略建议。" />
+        )}
       </Card>
       <Card className="nested-card" title="ROI 拆解">
         <Table<JsonObject>
@@ -4987,16 +6251,44 @@ function StrategyAnalysis({ report }: { report: JsonObject }) {
           dataSource={strategyRowsData}
           columns={[
             { title: "策略", dataIndex: "name" },
-            { title: "ROI", dataIndex: "roi", render: (value: unknown) => Number(value || 0).toFixed(2) },
+            { title: "仿真 ROI", dataIndex: "roi", render: (value: unknown) => Number(value || 0).toFixed(2) },
+            { title: "优先级", dataIndex: "recommendation_priority", render: (value: unknown) => !textValue(value) ? "-" : textValue(value) === "high" ? "高" : textValue(value) === "low" ? "低" : "条件" },
             { title: "触达", dataIndex: "reach_score", render: (value: unknown) => pct(value) },
             { title: "转化拉动", dataIndex: "conversion_lift", render: (value: unknown) => pct(value) },
             { title: "成本压力", dataIndex: "cost_pressure", render: (value: unknown) => pct(value) },
-            { title: "风险扣分", dataIndex: "risk_penalty", render: (value: unknown) => pct(value) }
+            { title: "风险扣分", dataIndex: "risk_penalty", render: (value: unknown) => pct(value) },
+            { title: "毛利安全度", dataIndex: "margin_safety_pct", render: (value: unknown) => value === null || value === undefined ? "-" : pct(value) },
+            { title: "专家依据", dataIndex: "expert_basis", ellipsis: true }
           ]}
         />
       </Card>
+      {commercialModelEnabled && <Card className="nested-card" title="渠道贡献拆解">
+        <Table<JsonObject>
+          size="small"
+          pagination={false}
+          rowKey={(record, index) => `${textValue(record.name || "channel")}-${index}`}
+          dataSource={channelRowsData}
+          columns={[
+            { title: "渠道", dataIndex: "name" },
+            { title: "贡献", dataIndex: "share", render: (value: unknown) => pct(value) },
+            { title: "触达", dataIndex: "reach_score", render: (value: unknown) => pct(value) },
+            { title: "转化", dataIndex: "conversion_score", render: (value: unknown) => pct(value) },
+            { title: "获客成本压力", dataIndex: "acquisition_cost_pressure", render: (value: unknown) => pct(value) },
+            { title: "客群匹配", dataIndex: "crowd_match", render: (value: unknown) => pct(value) },
+            { title: "场景匹配", dataIndex: "scene_match", render: (value: unknown) => pct(value) }
+          ]}
+        />
+      </Card>}
       <Card className="nested-card" title="策略证据">
-        <EvidenceTable rows={evidence} emptyDescription={chartMissingText("strategy")} />
+        {evidence.length > 0 ? (
+          <EvidenceTable rows={evidence} emptyDescription={chartMissingText("strategy")} />
+        ) : hasConfiguredStrategy ? (
+          <Paragraph className="muted-block">
+            已基于您填写的营销策略完成模拟分析，本轮没有额外证据片段可展示。若需要提高策略证据置信度，可以补充策略详情、渠道预算或投放动作。
+          </Paragraph>
+        ) : (
+          <EvidenceTable rows={evidence} emptyDescription={chartMissingText("strategy")} />
+        )}
       </Card>
     </Space>
   );
@@ -5026,12 +6318,58 @@ function CompetitorAnalysis({ report, pro }: { report: JsonObject; pro: boolean 
 }
 
 function SensitivityAnalysis({ report, pro }: { report: JsonObject; pro: boolean }) {
+  const navigate = useNavigate();
+  const projectId = useProjectId();
+  const [cloning, setCloning] = useState(false);
   const pricing = (report.pricing_analysis || {}) as JsonObject;
   const chart = getChartData(report);
+  const dataGaps = ((report.data_gaps || chart.data_gaps || {}) as JsonObject) || {};
+  const missingItems = chartRows(dataGaps.missing_items);
+  const customGapItems = chartRows(dataGaps.custom_competitor_gaps);
+  const gapItems = [
+    ...missingItems,
+    ...customGapItems.filter((customItem) => !missingItems.some((missingItem) => textValue(missingItem.id) === textValue(customItem.id)))
+  ];
+  const customGapCount = gapItems.filter((item) => Boolean(item.is_custom) || textValue(item.competitor_type) === "custom").length;
   const priceBand = (chart.recommended_price_band || {}) as JsonObject;
   const priceRows = chartRows(chart.price_sensitivity);
+  const paramRows = chartRows(chart.param_importance);
+  const paramAudit = recordValue(recordValue(report.differentiation_audit || chart.differentiation_audit).param_importance);
+  const parameterRankingUnavailable = textValue(paramAudit.status) === "tied";
+  const commercialModelEnabled = textValue(report.commercial_model_version || chart.commercial_model_version) === "commercial_differentiation_v1";
+  async function cloneForPriceFix() {
+    if (!projectId) return;
+    setCloning(true);
+    try {
+      const cloned = await api.cloneProject(projectId);
+      const clonedId = textValue(cloned.id);
+      setActiveProjectId(clonedId);
+      message.success("已创建补录副本，原报告和冻结快照保持不变");
+      navigate("/step/2?project_id=" + encodeURIComponent(clonedId));
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "创建补录副本失败");
+    } finally {
+      setCloning(false);
+    }
+  }
   return (
     <Space direction="vertical" size={16} className="w-full">
+      {gapItems.length > 0 && (
+        <Alert
+          type="warning"
+          showIcon
+          message={customGapCount > 0 ? `检测到 ${gapItems.length} 个竞品信息缺口，其中 ${customGapCount} 个明确属于自定义竞品` : `检测到 ${gapItems.length} 个产品库竞品价格缺口`}
+          description={
+            <Space direction="vertical" size={8}>
+              <Text>{gapItems.map((item) => `${Boolean(item.is_custom) || textValue(item.competitor_type) === "custom" ? "【自定义竞品】" : "【产品库竞品】"}${textValue(item.brand)} ${textValue(item.product_name)}：${textValue(item.reason)}`).join("；")}。相关结论可能因信息不完整产生偏差。</Text>
+              {!report.public_view && projectId && <Button size="small" loading={cloning} onClick={cloneForPriceFix}>创建副本并补录</Button>}
+            </Space>
+          }
+        />
+      )}
+      {["close", "tied"].includes(textValue(paramAudit.status)) && (
+        <Alert type="info" showIcon message="部分参数影响度较为接近" description={textValue(paramAudit.explanation)} />
+      )}
       <Row gutter={[16, 16]}>
         <Col xs={24} lg={12}>
           <ChartCard title="价格敏感曲线">
@@ -5040,18 +6378,48 @@ function SensitivityAnalysis({ report, pro }: { report: JsonObject; pro: boolean
         </Col>
         <Col xs={24} lg={12}>
           <ChartCard title="参数影响">
-            {pro ? <SensitivityWaterfallChart report={report} /> : <ParamImportanceChart report={report} />}
+            {parameterRankingUnavailable
+              ? <Alert type="warning" showIcon message="当前输入不足，暂不形成参数影响排名" description={textValue(paramAudit.explanation)} />
+              : pro ? <SensitivityWaterfallChart report={report} /> : <ParamImportanceChart report={report} />}
           </ChartCard>
         </Col>
       </Row>
+      {commercialModelEnabled && paramRows.length > 0 && (
+        <Card className="nested-card" title="参数影响组成">
+          <Table<JsonObject>
+            size="small"
+            pagination={false}
+            rowKey={(record, index) => `${textValue(record.id || record.name || "param")}-${index}`}
+            dataSource={paramRows}
+            columns={[
+              { title: "参数", dataIndex: "name" },
+              { title: "影响度", dataIndex: "importance", render: (value: unknown) => pct(value) },
+              { title: "配置权重", dataIndex: "weight" },
+              { title: "竞品可比覆盖", dataIndex: "comparison_coverage_pct", render: (value: unknown) => pct(value) },
+              {
+                title: "组成",
+                dataIndex: "component_scores",
+                render: (value: unknown) => {
+                  const components = recordValue(value);
+                  const labels: Record<string, string> = { configured_weight: "配置", purchase_driver: "购买驱动", crowd_priority: "客群偏好", competitor_difference: "竞品差异" };
+                  return Object.entries(components).map(([key, score]) => `${labels[key] || key} ${Number(score || 0).toFixed(1)}%`).join("；") || "-";
+                }
+              }
+            ]}
+          />
+        </Card>
+      )}
       <Card className="nested-card" title="定价解释">
         <Paragraph>{textValue(pricing.summary || "当前价格敏感性由 Agent 决策和价格变化规则生成，用于判断价格上下浮动对购买意愿的方向性影响。")}</Paragraph>
         <Descriptions size="small" column={{ xs: 1, md: 3 }}>
           <Descriptions.Item label="参考价格">{textValue(pricing.reference_price || "-")}</Descriptions.Item>
-          <Descriptions.Item label="价格覆盖率">{pct(((pricing.competitor_price_coverage as JsonObject | undefined)?.price_coverage_pct) || 0)}</Descriptions.Item>
-          <Descriptions.Item label="价格缺失竞品">{textValue((pricing.competitor_price_coverage as JsonObject | undefined)?.missing_price_count ?? "-")}</Descriptions.Item>
+          <Descriptions.Item label="价格覆盖率">{pct(dataGaps.price_coverage_pct ?? (((pricing.competitor_price_coverage as JsonObject | undefined)?.price_coverage_pct) || 0))}</Descriptions.Item>
+          <Descriptions.Item label="确认/推算/手填">{Number(dataGaps.confirmed_count || 0)} / {Number(dataGaps.estimated_count || 0)} / {Number(dataGaps.manual_count || 0)}</Descriptions.Item>
+          <Descriptions.Item label="价格缺失竞品">{textValue(dataGaps.missing_count ?? (pricing.competitor_price_coverage as JsonObject | undefined)?.missing_price_count ?? "-")}</Descriptions.Item>
           <Descriptions.Item label="建议价格带">{textValue(priceBand.min_price ?? "-")} - {textValue(priceBand.max_price ?? "-")}</Descriptions.Item>
           <Descriptions.Item label="峰值意愿">{pct(priceBand.peak_intent)}</Descriptions.Item>
+          <Descriptions.Item label="曲线模型">{textValue(priceRows[0]?.curve_model || "-")}</Descriptions.Item>
+          <Descriptions.Item label="竞品价格锚点">{textValue(priceRows[0]?.competitor_anchor_price_cny || "-")}</Descriptions.Item>
         </Descriptions>
         <Paragraph className="mt-16">{textValue(priceBand.analysis || "建议价格带由价格敏感曲线筛选得到，用于辅助方案讨论。")}</Paragraph>
       </Card>
@@ -5087,6 +6455,11 @@ function EvidenceTable({ rows, emptyDescription = "暂无证据" }: { rows: Json
       rowKey={(record, index) => `${textValue(record.source || record.group || "evidence")}-${index}`}
       dataSource={data}
       columns={[
+        {
+          title: "来源分类",
+          width: 130,
+          render: (_: unknown, record: JsonObject) => <Tag color={evidenceSourceCategory(record) === "公开资料补充" ? "blue" : evidenceSourceCategory(record) === "结构化竞品数据" ? "green" : "default"}>{evidenceSourceCategory(record)}</Tag>
+        },
         { title: "来源", dataIndex: "source", width: 140 },
         { title: "类型", dataIndex: "source_type", width: 150 },
         { title: "分数", dataIndex: "score", width: 90, render: (value: unknown) => Number(value || 0).toFixed(2) },
@@ -5188,18 +6561,27 @@ function Step4Report({ user, onLogout, onUserChange }: { user: User; onLogout: (
   const { project, setProject, refreshProject } = useProject(projectId);
   const [shareUrl, setShareUrl] = useState("");
   const [loading, setLoading] = useState(false);
+  const [reportLoaded, setReportLoaded] = useState(false);
+  const [reportNotice, setReportNotice] = useState("报告正在整理，请稍后刷新");
   const [exportingFormat, setExportingFormat] = useState<"json" | "markdown" | "excel" | "pdf" | "">("");
   const report = unwrapReport(project);
   const pro = isProjectPro(project, user, report);
+  const reportReady = reportLoaded && Object.keys(report).length > 0;
 
   async function loadReport() {
     if (!projectId) return;
     setLoading(true);
+    setReportLoaded(false);
+    setReportNotice("报告正在整理，请稍后刷新");
     try {
       const response = (await api.report(projectId)) as JsonObject;
       setProject((current) => current ? { ...current, status: String(response.status || "completed"), result_data: response.report as JsonObject } : current);
+      setReportLoaded(true);
+      setReportNotice("");
     } catch (error) {
-      message.error(error instanceof Error ? error.message : "报告尚未生成");
+      const content = error instanceof Error ? error.message : "报告尚未生成";
+      setReportNotice(content || "报告正在整理，请稍后刷新");
+      message.info(content || "报告正在整理，请稍后刷新");
       await refreshProject();
     } finally {
       setLoading(false);
@@ -5332,19 +6714,19 @@ function Step4Report({ user, onLogout, onUserChange }: { user: User; onLogout: (
             <Button icon={<ReloadOutlined />} onClick={loadReport}>
               刷新
             </Button>
-            <Button icon={<CloudDownloadOutlined />} disabled={!pro || Boolean(exportingFormat)} loading={exportingFormat === "json"} onClick={() => exportReport("json")}>
+            <Button icon={<CloudDownloadOutlined />} disabled={!pro || !reportReady || Boolean(exportingFormat)} loading={exportingFormat === "json"} onClick={() => exportReport("json")}>
               JSON
             </Button>
-            <Button icon={<FileTextOutlined />} disabled={!pro || Boolean(exportingFormat)} loading={exportingFormat === "markdown"} onClick={() => exportReport("markdown")}>
+            <Button icon={<FileTextOutlined />} disabled={!pro || !reportReady || Boolean(exportingFormat)} loading={exportingFormat === "markdown"} onClick={() => exportReport("markdown")}>
               Markdown
             </Button>
-            <Button icon={<BarChartOutlined />} disabled={!pro || Boolean(exportingFormat)} loading={exportingFormat === "excel"} onClick={() => exportReport("excel")}>
+            <Button icon={<BarChartOutlined />} disabled={!pro || !reportReady || Boolean(exportingFormat)} loading={exportingFormat === "excel"} onClick={() => exportReport("excel")}>
               Excel
             </Button>
-            <Button icon={<FileTextOutlined />} disabled={!pro || Boolean(exportingFormat)} loading={exportingFormat === "pdf"} onClick={() => exportReport("pdf")}>
+            <Button icon={<FileTextOutlined />} disabled={!pro || !reportReady || Boolean(exportingFormat)} loading={exportingFormat === "pdf"} onClick={() => exportReport("pdf")}>
               PDF
             </Button>
-            <Button type="primary" icon={<ShareAltOutlined />} disabled={!pro} onClick={shareReport}>
+            <Button type="primary" icon={<ShareAltOutlined />} disabled={!pro || !reportReady} onClick={shareReport}>
               分享
             </Button>
           </Space>
@@ -5359,7 +6741,17 @@ function Step4Report({ user, onLogout, onUserChange }: { user: User; onLogout: (
             description={<Input readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} />}
           />
         )}
-        <Tabs items={tabItems} />
+        {reportReady ? (
+          <Tabs items={tabItems} />
+        ) : (
+          <Alert
+            type="info"
+            showIcon
+            message="报告正在整理"
+            description={reportNotice || "系统正在整理报告数据和图表，请稍后刷新。"}
+            action={<Button size="small" onClick={loadReport} loading={loading}>刷新报告</Button>}
+          />
+        )}
       </Card>
     </AppShell>
   );

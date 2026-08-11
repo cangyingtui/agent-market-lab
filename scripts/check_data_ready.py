@@ -47,6 +47,15 @@ def main() -> int:
             Product.is_active.is_(True),
             Product.category_id.is_not(None),
         )
+        active_products_missing_price = count_rows(
+            db,
+            Product,
+            Product.is_active.is_(True),
+            Product.price_cny.is_(None),
+        )
+        flyco_fs891_price = db.scalar(
+            select(Product.price_cny).where(Product.brand == "飞科", Product.confirmed_sku == "FS891")
+        )
         crowd_templates = count_rows(db, MarketCrowdTemplate)
         strategy_templates = count_rows(db, MarketStrategyTemplate)
         scene_templates = count_rows(db, MarketSceneTemplate)
@@ -70,6 +79,8 @@ def main() -> int:
         categorized_products > 0,
         "大于 0；若为 0，通常是先 seed_products 后 seed_categories 导致产品无分类",
     )
+    add_check("active_products_missing_price", active_products_missing_price, active_products_missing_price == 0, "等于 0")
+    add_check("flyco_fs891_price", flyco_fs891_price, float(flyco_fs891_price or 0) == 199.0, "等于 199")
     add_check("market_crowd_templates", crowd_templates, crowd_templates > 0, "大于 0，正常约 15")
     add_check("market_strategy_templates", strategy_templates, strategy_templates > 0, "大于 0，正常约 3")
     add_check("market_scene_templates", scene_templates, scene_templates > 0, "大于 0，正常约 4")

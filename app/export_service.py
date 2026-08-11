@@ -38,6 +38,15 @@ PUBLIC_STRIP_KEYS = PRIVATE_STRIP_KEYS | {
     "base_maut_scores",
     "neighbor_purchase_intent_avg",
     "social_score_change",
+    "economics",
+    "strategy_economics",
+    "gross_margin_pct",
+    "unit_promotion_cost_cny",
+    "total_budget_cny",
+    "gross_profit_per_unit",
+    "promotion_burden_per_unit",
+    "contribution_after_promotion",
+    "margin_safety_pct",
 }
 BUSINESS_STRIP_KEYS = {"distill_summary"}
 WEB_REPORT_OMIT_KEYS = {
@@ -139,9 +148,40 @@ def sanitize_web_report(report: dict[str, Any] | None, *, public: bool = False) 
     sanitized = sanitize_report(report, public=public)
     # Browser views only need summaries and chart-ready rows. Keep full detail in
     # result_data for JSON, Markdown, Excel and PDF export generation.
-    web_safe = _sanitize_value(sanitized, public=True)
+    # Owner-facing reports may display the optional economics supplied by that
+    # owner. Only public share/print views use the stricter public stripping set.
+    web_safe = _sanitize_value(sanitized, public=public)
     compacted = _compact_web_value(web_safe)
     return compacted if isinstance(compacted, dict) else {}
+
+
+def _safe_positive_price(value: Any) -> float | None:
+    try:
+        parsed = float(str(value).replace(",", "").strip())
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _project_price_for_export(project: SimulationProject, report: dict[str, Any]) -> float | None:
+    snapshot = project.config_snapshot if isinstance(project.config_snapshot, dict) else {}
+    snapshot_product = snapshot.get("product_definition") if isinstance(snapshot.get("product_definition"), dict) else {}
+    report_product = report.get("product_definition") if isinstance(report.get("product_definition"), dict) else {}
+    result_data = project.result_data if isinstance(project.result_data, dict) else {}
+    result_product = result_data.get("product_definition") if isinstance(result_data.get("product_definition"), dict) else {}
+    project_product = project.product_definition if isinstance(project.product_definition, dict) else {}
+    pricing = report.get("pricing_analysis") if isinstance(report.get("pricing_analysis"), dict) else {}
+    for value in (
+        snapshot_product.get("price_cny"),
+        report_product.get("price_cny"),
+        result_product.get("price_cny"),
+        project_product.get("price_cny"),
+        pricing.get("reference_price"),
+    ):
+        parsed = _safe_positive_price(value)
+        if parsed is not None:
+            return parsed
+    return None
 
 
 def with_project_report_fallbacks(
@@ -152,6 +192,14 @@ def with_project_report_fallbacks(
 ) -> dict[str, Any]:
     enriched = dict(report)
     market_config = project.market_config if isinstance(project.market_config, dict) else {}
+    product_price = _project_price_for_export(project, enriched)
+    if product_price is not None:
+        product_definition = dict(enriched.get("product_definition") if isinstance(enriched.get("product_definition"), dict) else {})
+        product_definition.setdefault("price_cny", product_price)
+        enriched["product_definition"] = product_definition
+        pricing = dict(enriched.get("pricing_analysis") if isinstance(enriched.get("pricing_analysis"), dict) else {})
+        pricing.setdefault("reference_price", product_price)
+        enriched["pricing_analysis"] = pricing
     if market_config:
         if include_market_config:
             enriched.setdefault("market_config", market_config)
@@ -299,9 +347,14 @@ def _strategy_name(value: Any) -> str:
 
 def selected_strategy_rows(report: dict[str, Any], market_config: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     raw = report.get("selected_strategies")
+    report_market = report.get("market_config") if isinstance(report.get("market_config"), dict) else {}
+    source_market = market_config if isinstance(market_config, dict) and market_config else report_market
+    strategy_details = {}
+    if isinstance(report.get("strategy_details"), dict):
+        strategy_details.update(report["strategy_details"])
+    if isinstance(source_market.get("strategy_details"), dict):
+        strategy_details.update(source_market["strategy_details"])
     if not isinstance(raw, list) or not raw:
-        report_market = report.get("market_config") if isinstance(report.get("market_config"), dict) else {}
-        source_market = market_config if isinstance(market_config, dict) and market_config else report_market
         raw = source_market.get("strategies") if isinstance(source_market.get("strategies"), list) else []
         if not raw and source_market.get("strategy"):
             raw = [source_market.get("strategy")]
@@ -311,13 +364,35 @@ def selected_strategy_rows(report: dict[str, Any], market_config: dict[str, Any]
         if not name:
             continue
         row = {"序号": index, "策略": name}
-        if isinstance(item, dict):
-            channels = item.get("channels")
-            if isinstance(channels, list):
-                row["渠道"] = "、".join(str(value) for value in channels if value)
-            for key, label in (("description", "说明"), ("intensity", "强度"), ("price_discount", "折扣")):
-                if item.get(key) not in (None, ""):
-                    row[label] = item.get(key)
+        detail = strategy_details.get(name) if isinstance(strategy_details.get(name), dict) else {}
+        source_item = {**detail, **item} if isinstance(item, dict) else detail
+        channels = source_item.get("channels") or source_item.get("touch_channels")
+        if isinstance(channels, list):
+            row["渠道"] = "、".join(str(value) for value in channels if value)
+        elif channels:
+            row["渠道"] = str(channels)
+        for key, label in (
+            ("description", "说明"),
+            ("core_selling_point", "核心卖点"),
+            ("target_segment", "目标客群"),
+            ("benefit", "优惠/权益"),
+            ("action", "执行动作"),
+            ("budget_intensity", "预算强度"),
+            ("risk_note", "风险说明"),
+            ("intensity", "强度"),
+            ("price_discount", "折扣"),
+        ):
+            if source_item.get(key) not in (None, ""):
+                row[label] = source_item.get(key)
+        economics = source_item.get("economics") if isinstance(source_item.get("economics"), dict) else {}
+        for key, label in (
+            ("gross_margin_pct", "基础毛利率"),
+            ("discount_pct", "让利比例"),
+            ("unit_promotion_cost_cny", "单笔推广成本"),
+            ("total_budget_cny", "总预算"),
+        ):
+            if economics.get(key) not in (None, ""):
+                row[label] = economics.get(key)
         rows.append(row)
     return rows
 
@@ -533,8 +608,17 @@ def build_business_analysis_lines(report: dict[str, Any]) -> list[str]:
     price_quality = aggregation.get("evidence_quality") if isinstance(aggregation.get("evidence_quality"), dict) else report.get("data_quality") or {}
     if not isinstance(price_quality, dict):
         price_quality = {}
+    market_scope = report.get("market_share_scope") if isinstance(report.get("market_share_scope"), dict) else chart_data.get("market_share_scope") or {}
+    scenario_share = market_scope.get("full_market_scenario_share")
+    rci = market_scope.get("relative_competitiveness_index")
+    market_line = (
+        f"购买意愿指数为 {_pct(overview.get('purchase_intent_index'))}，仿真环境份额为 {_pct(overview.get('estimated_market_share'))}；"
+        "该份额是本品与本轮已选竞品的封闭归一化结果，不代表真实全市场预测。"
+    )
+    if scenario_share is not None:
+        market_line += f" 按 {market_scope.get('assumed_market_competitor_count') or '-'} 个竞品换算的全市场情景份额为 {_pct(scenario_share)}，RCI 为 {_as_float(rci):.2f}。"
     return [
-        f"购买意愿指数为 {_pct(overview.get('purchase_intent_index'))}，预估市场份额为 {_pct(overview.get('estimated_market_share'))}；该份额来自 Agent 购买决策和竞品相对吸引力归一计算，不由模型直接编造。",
+        market_line,
         f"五维拆解中，{top.get('维度')} 是当前主要支撑项，加权贡献约 {top.get('加权贡献')}；{weak.get('维度')} 是相对薄弱项，建议在销售表达或产品配置上补强。",
         f"当前证据置信度为 {confidence.get('label') or '-'}（{_pct(confidence.get('score'), scale=100)}），竞品价格覆盖率为 {_pct(price_quality.get('price_coverage_pct'))}。若价格覆盖率偏低，定价结论应视为方向性建议。",
     ]
@@ -570,9 +654,17 @@ def render_markdown_report(project: SimulationProject) -> str:
         "",
         *_markdown_table(_key_value_rows(chart_data.get("overview_metrics") or {}), ["指标", "值"]),
         "",
-        "### 市场份额",
+        "### 仿真环境份额",
         "",
         *_markdown_table(chart_data.get("market_share") if isinstance(chart_data.get("market_share"), list) else [], ["name", "role", "share", "source"]),
+        "",
+        "### 市场份额口径",
+        "",
+        *_markdown_table(_key_value_rows(chart_data.get("market_share_scope") or report.get("market_share_scope") or {}), ["指标", "值"]),
+        "",
+        "### 全市场情景换算",
+        "",
+        *_markdown_table(chart_data.get("market_share_scenarios") if isinstance(chart_data.get("market_share_scenarios"), list) else [], ["competitor_count", "share"]),
         "",
         "### 购买意愿",
         "",
@@ -589,9 +681,18 @@ def render_markdown_report(project: SimulationProject) -> str:
         "",
         *_markdown_table(chart_data.get("price_sensitivity") if isinstance(chart_data.get("price_sensitivity"), list) else [], ["price", "intent"]),
         "",
-        "### 策略 ROI",
+        "### 仿真 ROI",
         "",
-        *_markdown_table(chart_data.get("strategy_roi") if isinstance(chart_data.get("strategy_roi"), list) else [], ["name", "roi", "intensity", "discount"]),
+        *(
+            [str((chart_data.get("simulation_boundaries") or report.get("simulation_boundaries") or {}).get("expert_strategy_note") or ""), "", str((chart_data.get("simulation_boundaries") or report.get("simulation_boundaries") or {}).get("simulation_roi_note") or ""), ""]
+            if chart_data.get("commercial_model_version") or report.get("commercial_model_version")
+            else []
+        ),
+        *_markdown_table(chart_data.get("strategy_roi") if isinstance(chart_data.get("strategy_roi"), list) else [], ["name", "roi", "recommendation_priority", "reach_score", "conversion_lift", "cost_pressure", "risk_penalty", "margin_safety_pct", "expert_basis"]),
+        "",
+        "### 渠道贡献拆解",
+        "",
+        *_markdown_table(chart_data.get("channel_effect") if isinstance(chart_data.get("channel_effect"), list) else [], ["name", "share", "reach_score", "conversion_score", "acquisition_cost_pressure", "crowd_match", "scene_match"]),
         "",
         "## 社交传播分析",
         "",
@@ -634,6 +735,14 @@ def render_markdown_report(project: SimulationProject) -> str:
             lines.append(f"  - 执行动作：{'；'.join(item['actions'])}")
         if item["expected_impact"]:
             lines.append(f"  - 预期影响：{item['expected_impact']}")
+        if item.get("recommendation_priority"):
+            lines.append(f"  - 推荐优先级：{item['recommendation_priority']}")
+        if item.get("expert_basis"):
+            lines.append(f"  - 专家依据：{item['expert_basis']}")
+        if item.get("applicable_conditions"):
+            lines.append(f"  - 适用条件：{'；'.join(item['applicable_conditions'])}")
+        if item.get("cost_risk"):
+            lines.append(f"  - 成本风险：{item['cost_risk']}")
     if not recommendations:
         lines.append("- 暂无")
 
@@ -885,12 +994,28 @@ def write_excel_report(path: Path, project: SimulationProject) -> None:
 
     _create_rows_sheet(workbook, "图表_市场份额", chart_data.get("market_share"))
     _create_rows_sheet(workbook, "图表_全量市场份额", chart_data.get("market_share_full"))
+    market_scope = workbook.create_sheet("市场份额口径")
+    _append_key_value_rows(market_scope, chart_data.get("market_share_scope") or report.get("market_share_scope") or {})
+    _create_rows_sheet(workbook, "市场份额情景", chart_data.get("market_share_scenarios") or report.get("market_share_scenarios"))
+    data_gaps = workbook.create_sheet("数据缺口")
+    _append_key_value_rows(data_gaps, chart_data.get("data_gaps") or report.get("data_gaps") or {})
+    _create_rows_sheet(workbook, "渠道情景", report.get("channel_scenarios"))
+    funnel = report.get("propagation_funnel") if isinstance(report.get("propagation_funnel"), dict) else {}
+    _create_rows_sheet(workbook, "传播漏斗轮次", funnel.get("rounds"))
+    _create_rows_sheet(workbook, "传播漏斗流向", funnel.get("links"))
+    _create_rows_sheet(workbook, "舆情演化", funnel.get("sentiment_evolution"))
     _create_rows_sheet(workbook, "竞品逐项分析", chart_data.get("competitor_analysis"))
     _create_rows_sheet(workbook, "图表_购买意愿", chart_data.get("purchase_intent_by_segment"))
     _create_rows_sheet(workbook, "图表_功能重要性", chart_data.get("param_importance"))
     _create_rows_sheet(workbook, "图表_价格敏感", chart_data.get("price_sensitivity"))
     _create_rows_sheet(workbook, "图表_策略ROI", chart_data.get("strategy_roi"))
     _create_rows_sheet(workbook, "图表_渠道贡献", chart_data.get("channel_effect"))
+    differentiation = workbook.create_sheet("差异化审计")
+    _append_key_value_rows(differentiation, report.get("differentiation_audit") or chart_data.get("differentiation_audit") or {})
+    boundaries = workbook.create_sheet("仿真口径")
+    _append_key_value_rows(boundaries, report.get("simulation_boundaries") or chart_data.get("simulation_boundaries") or {})
+    economics = workbook.create_sheet("策略成本输入")
+    _append_key_value_rows(economics, report.get("strategy_economics") or chart_data.get("strategy_economics") or {})
     _create_rows_sheet(workbook, "图表_社交演化", chart_data.get("social_evolution"))
     _create_rows_sheet(workbook, "社交传播轮次", chart_data.get("social_rounds"))
 

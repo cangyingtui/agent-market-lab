@@ -18,6 +18,32 @@ MAUT_WEIGHTS: dict[str, float] = {
     "social_influence": 0.20,
 }
 
+WEIGHT_PROFILE_VERSION = "channel_weights_v1"
+WEIGHT_TEMPLATES: dict[str, dict[str, float]] = {
+    "default": dict(MAUT_WEIGHTS),
+    "douyin": {
+        "function_fit": 0.25,
+        "price_acceptance": 0.25,
+        "promotion_bonus": 0.20,
+        "brand_loyalty": 0.10,
+        "social_influence": 0.20,
+    },
+    "tmall": {
+        "function_fit": 0.25,
+        "price_acceptance": 0.27,
+        "promotion_bonus": 0.13,
+        "brand_loyalty": 0.20,
+        "social_influence": 0.15,
+    },
+    "offline_premium": {
+        "function_fit": 0.25,
+        "price_acceptance": 0.20,
+        "promotion_bonus": 0.10,
+        "brand_loyalty": 0.25,
+        "social_influence": 0.20,
+    },
+}
+
 DIMENSION_LABELS: dict[str, str] = {
     "function_fit": "功能匹配度",
     "price_acceptance": "价格接受度",
@@ -42,6 +68,34 @@ def safe_float(value: Any, default: float = 0.0) -> float:
         except ValueError:
             return default
     return default
+
+
+def normalize_weights(value: Any, *, fallback: dict[str, float] | None = None) -> dict[str, float]:
+    base = fallback or MAUT_WEIGHTS
+    raw = value if isinstance(value, dict) else {}
+    weights = {
+        key: max(0.0, safe_float(raw.get(key), base[key]))
+        for key in MAUT_WEIGHTS
+    }
+    total = sum(weights.values())
+    if total <= 0:
+        return dict(base)
+    return {key: round(weight / total, 6) for key, weight in weights.items()}
+
+
+def decision_weight_profile(snapshot: dict[str, Any] | None) -> dict[str, Any]:
+    snapshot = snapshot if isinstance(snapshot, dict) else {}
+    configured = snapshot.get("decision_weight_profile")
+    if not isinstance(configured, dict):
+        configured = {}
+    template = str(configured.get("template") or "default").strip().lower()
+    template_weights = WEIGHT_TEMPLATES.get(template, WEIGHT_TEMPLATES["default"])
+    weights = normalize_weights(configured.get("weights"), fallback=template_weights)
+    return {
+        "template": template if template in WEIGHT_TEMPLATES or template == "custom" else "default",
+        "version": str(configured.get("version") or WEIGHT_PROFILE_VERSION),
+        "weights": weights,
+    }
 
 
 def product_price(product: dict[str, Any]) -> float | None:
@@ -229,9 +283,13 @@ def compute_maut_scores(
     }
 
 
-def weighted_purchase_intent(maut_scores: dict[str, Any]) -> float:
+def weighted_purchase_intent(
+    maut_scores: dict[str, Any],
+    weights: dict[str, float] | None = None,
+) -> float:
+    active_weights = normalize_weights(weights)
     return round(
-        clamp(sum(MAUT_WEIGHTS[key] * safe_float(maut_scores.get(key), 0.0) for key in MAUT_WEIGHTS)),
+        clamp(sum(active_weights[key] * safe_float(maut_scores.get(key), 0.0) for key in MAUT_WEIGHTS)),
         4,
     )
 
@@ -245,13 +303,15 @@ def enrich_decisions_with_maut(
     override_score: bool = True,
 ) -> list[dict[str, Any]]:
     product = snapshot.get("product_definition") or {}
+    profile = decision_weight_profile(snapshot)
+    weights = profile["weights"]
     agent_map = {agent.get("agent_id"): agent for agent in agents}
     enriched: list[dict[str, Any]] = []
     for decision in decisions:
         copied = dict(decision)
         agent = agent_map.get(copied.get("agent_id"), {})
         maut_scores = compute_maut_scores(snapshot, evidence, agent)
-        maut_score = weighted_purchase_intent(maut_scores)
+        maut_score = weighted_purchase_intent(maut_scores, weights)
         original_score = safe_float(copied.get("purchase_intent_score"), -1)
         if original_score >= 0:
             copied["llm_purchase_intent_score"] = round(clamp(original_score), 4)
@@ -263,7 +323,8 @@ def enrich_decisions_with_maut(
         copied["sample_weight"] = safe_float(agent.get("sample_weight"), 1.0)
         copied["maut_scores"] = maut_scores
         copied["maut_weighted_score"] = maut_score
-        copied["maut_formula"] = "100 * clip(0.30*S_f + 0.25*S_p + 0.10*B_pr + 0.15*B_b + 0.20*S_s)"
+        copied["maut_formula"] = weight_formula(weights)
+        copied["decision_weight_profile"] = profile["template"]
         copied["confidence"] = confidence_for_decision(copied, product)
         if product_price(product) is None:
             blockers = list(copied.get("blockers") or [])
@@ -274,7 +335,11 @@ def enrich_decisions_with_maut(
     return enriched
 
 
-def average_dimension_scores(decisions: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+def average_dimension_scores(
+    decisions: list[dict[str, Any]],
+    weights: dict[str, float] | None = None,
+) -> dict[str, dict[str, Any]]:
+    active_weights = normalize_weights(weights)
     rows: dict[str, list[tuple[float, float]]] = {key: [] for key in MAUT_WEIGHTS}
     for decision in decisions:
         scores = decision.get("maut_scores") if isinstance(decision.get("maut_scores"), dict) else {}
@@ -293,9 +358,9 @@ def average_dimension_scores(decisions: list[dict[str, Any]]) -> dict[str, dict[
     return {
         key: {
             "label": DIMENSION_LABELS[key],
-            "weight": MAUT_WEIGHTS[key],
+            "weight": active_weights[key],
             "avg_score": round(averages[key], 4),
-            "weighted_contribution": round(averages[key] * MAUT_WEIGHTS[key], 4),
+            "weighted_contribution": round(averages[key] * active_weights[key], 4),
         }
         for key in rows
     }
@@ -346,22 +411,66 @@ def confidence_summary(decisions: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def build_decision_model_summary(decisions: list[dict[str, Any]]) -> dict[str, Any]:
+def weight_formula(weights: dict[str, float]) -> str:
+    active = normalize_weights(weights)
+    return (
+        "100 * clip("
+        f"{active['function_fit']:.2f}*S_f + {active['price_acceptance']:.2f}*S_p + "
+        f"{active['promotion_bonus']:.2f}*B_pr + {active['brand_loyalty']:.2f}*B_b + "
+        f"{active['social_influence']:.2f}*S_s)"
+    )
+
+
+def build_channel_scenarios(decisions: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    rows: list[dict[str, Any]] = []
+    for template, weights in WEIGHT_TEMPLATES.items():
+        weighted_rows = [
+            (
+                weighted_purchase_intent(
+                    decision.get("maut_scores") if isinstance(decision.get("maut_scores"), dict) else {},
+                    weights,
+                ),
+                max(safe_float(decision.get("sample_weight"), 1.0), 0.0),
+            )
+            for decision in decisions
+        ]
+        total_weight = sum(weight for _, weight in weighted_rows)
+        score = sum(value * weight for value, weight in weighted_rows) / total_weight if total_weight else 0.0
+        rows.append(
+            {
+                "template": template,
+                "label": {"default": "默认", "douyin": "抖音", "tmall": "天猫", "offline_premium": "线下高端"}[template],
+                "weights": dict(weights),
+                "purchase_intent": round(score * 100, 1),
+            }
+        )
+    return rows
+
+
+def build_decision_model_summary(
+    decisions: list[dict[str, Any]],
+    snapshot: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    profile = decision_weight_profile(snapshot)
+    weights = profile["weights"]
     return {
         "prompt_version": PROMPT_VERSION,
         "formula": "PurchaseIntent = 100 * clip(w_f*S_f + w_p*S_p + w_pr*B_pr + w_b*B_b + w_s*S_s)",
+        "formula_resolved": weight_formula(weights),
+        "weight_profile": profile,
         "weights": [
             {"dimension": key, "label": DIMENSION_LABELS[key], "symbol": symbol, "weight": weight}
             for key, symbol, weight in (
-                ("function_fit", "S_f", MAUT_WEIGHTS["function_fit"]),
-                ("price_acceptance", "S_p", MAUT_WEIGHTS["price_acceptance"]),
-                ("promotion_bonus", "B_pr", MAUT_WEIGHTS["promotion_bonus"]),
-                ("brand_loyalty", "B_b", MAUT_WEIGHTS["brand_loyalty"]),
-                ("social_influence", "S_s", MAUT_WEIGHTS["social_influence"]),
+                ("function_fit", "S_f", weights["function_fit"]),
+                ("price_acceptance", "S_p", weights["price_acceptance"]),
+                ("promotion_bonus", "B_pr", weights["promotion_bonus"]),
+                ("brand_loyalty", "B_b", weights["brand_loyalty"]),
+                ("social_influence", "S_s", weights["social_influence"]),
             )
         ],
-        "dimension_scores": average_dimension_scores(decisions),
+        "dimension_scores": average_dimension_scores(decisions, weights),
         "confidence": confidence_summary(decisions),
+        "channel_scenarios": build_channel_scenarios(decisions),
         "notes": [
             "当前五维分数为规则化 MAUT 计算，用于保证报告可解释和可复盘。",
             "正式投放前建议结合真实销售、访谈和渠道数据进行复核。",

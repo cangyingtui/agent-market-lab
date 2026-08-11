@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from app.config import settings
+from app.openai_compat import create_openai_client
 from app.time_utils import utc_now_iso
 from engine.evidence_utils import PRODUCT_EVIDENCE_KEYS, evidence_items
 from engine.maut_model import build_decision_model_summary, enrich_decisions_with_maut
@@ -87,7 +88,7 @@ def fallback_decisions(
     return {
         "prompt_version": PROMPT_VERSION,
         "decisions": decisions,
-        "decision_model": build_decision_model_summary(decisions),
+        "decision_model": build_decision_model_summary(decisions, snapshot),
         "is_fallback": True,
         "fallback_reason": error or "规则化购买决策",
     }
@@ -214,9 +215,7 @@ def generate_purchase_decisions(
     sampled_agents = select_reasoning_agents(agents, max(1, settings.social_llm_sample_size))
     messages = build_decision_prompt(snapshot, evidence, sampled_agents)
     try:
-        from openai import OpenAI
-
-        client = OpenAI(
+        client = create_openai_client(
             api_key=settings.llm_api_key,
             base_url=settings.llm_api_base or None,
             timeout=settings.llm_timeout_seconds,
@@ -255,7 +254,7 @@ def generate_purchase_decisions(
         return {
             "prompt_version": PROMPT_VERSION,
             "decisions": decisions,
-            "decision_model": build_decision_model_summary(decisions),
+            "decision_model": build_decision_model_summary(decisions, snapshot),
             "is_fallback": False,
             "prompt_trace": {
                 "prompt_version": PROMPT_VERSION,

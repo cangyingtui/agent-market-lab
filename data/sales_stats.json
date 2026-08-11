@@ -1,0 +1,488 @@
+{
+  "source": "order.csv transaction aggregation",
+  "data_period": "2024-01 ~ 2025-01",
+  "total_orders": 477910,
+  "categories": [
+    {
+      "name": "3C电子",
+      "product_count": 10,
+      "brand_count": 3,
+      "total_orders": 103322
+    },
+    {
+      "name": "家居日用",
+      "product_count": 9,
+      "brand_count": 3,
+      "total_orders": 87414
+    },
+    {
+      "name": "服装鞋帽",
+      "product_count": 9,
+      "brand_count": 3,
+      "total_orders": 86128
+    },
+    {
+      "name": "美妆护肤",
+      "product_count": 9,
+      "brand_count": 3,
+      "total_orders": 94772
+    },
+    {
+      "name": "食品生鲜",
+      "product_count": 9,
+      "brand_count": 3,
+      "total_orders": 106274
+    }
+  ],
+  "product_shares": {
+    "3C电子": {
+      "小米 Xiaomi Book Air": {
+        "brand": "小米",
+        "total_qty": 15249,
+        "total_rev": 79964679.08,
+        "share_qty": 14.76,
+        "share_rev": 14.0
+      },
+      "小米 Xiaomi 14 Ultra": {
+        "brand": "小米",
+        "total_qty": 14784,
+        "total_rev": 82327356.65,
+        "share_qty": 14.31,
+        "share_rev": 14.41
+      },
+      "华为 Pura 70 Pro+": {
+        "brand": "华为",
+        "total_qty": 13394,
+        "total_rev": 77874852.97,
+        "share_qty": 12.96,
+        "share_rev": 13.63
+      },
+      "小米 Redmi K70 Pro": {
+        "brand": "小米",
+        "total_qty": 11300,
+        "total_rev": 70259665.82,
+        "share_qty": 10.94,
+        "share_rev": 12.3
+      },
+      "Apple MacBook Pro": {
+        "brand": "Apple",
+        "total_qty": 9798,
+        "total_rev": 48782464.43,
+        "share_qty": 9.48,
+        "share_rev": 8.54
+      },
+      "Apple iPad Air": {
+        "brand": "Apple",
+        "total_qty": 8626,
+        "total_rev": 59229071.95,
+        "share_qty": 8.35,
+        "share_rev": 10.37
+      },
+      "华为 MateBook X Pro": {
+        "brand": "华为",
+        "total_qty": 8372,
+        "total_rev": 41126313.8,
+        "share_qty": 8.1,
+        "share_rev": 7.2
+      },
+      "Apple AirPods Pro": {
+        "brand": "Apple",
+        "total_qty": 8086,
+        "total_rev": 41672109.37,
+        "share_qty": 7.83,
+        "share_rev": 7.29
+      },
+      "华为 Mate 60 Pro": {
+        "brand": "华为",
+        "total_qty": 7533,
+        "total_rev": 41478078.46,
+        "share_qty": 7.29,
+        "share_rev": 7.26
+      },
+      "Apple iPhone 15 Pro": {
+        "brand": "Apple",
+        "total_qty": 6180,
+        "total_rev": 28638925.74,
+        "share_qty": 5.98,
+        "share_rev": 5.01
+      }
+    },
+    "家居日用": {
+      "MUJI 无印良品四件套": {
+        "brand": "MUJI",
+        "total_qty": 13152,
+        "total_rev": 2342200.59,
+        "share_qty": 15.05,
+        "share_rev": 17.36
+      },
+      "网易严选 智能马桶盖": {
+        "brand": "网易严选",
+        "total_qty": 11201,
+        "total_rev": 1842917.52,
+        "share_qty": 12.81,
+        "share_rev": 13.66
+      },
+      "MUJI 香薰机": {
+        "brand": "MUJI",
+        "total_qty": 10631,
+        "total_rev": 1531986.8,
+        "share_qty": 12.16,
+        "share_rev": 11.36
+      },
+      "全棉时代 纯棉柔巾": {
+        "brand": "全棉时代",
+        "total_qty": 10298,
+        "total_rev": 1549040.99,
+        "share_qty": 11.78,
+        "share_rev": 11.48
+      },
+      "网易严选 空气净化器": {
+        "brand": "网易严选",
+        "total_qty": 10094,
+        "total_rev": 1544963.76,
+        "share_qty": 11.55,
+        "share_rev": 11.45
+      },
+      "全棉时代 婴儿湿巾": {
+        "brand": "全棉时代",
+        "total_qty": 9629,
+        "total_rev": 1655704.83,
+        "share_qty": 11.02,
+        "share_rev": 12.28
+      },
+      "MUJI 收纳盒": {
+        "brand": "MUJI",
+        "total_qty": 9313,
+        "total_rev": 1210500.94,
+        "share_qty": 10.65,
+        "share_rev": 8.97
+      },
+      "网易严选 日式和风四件套": {
+        "brand": "网易严选",
+        "total_qty": 7082,
+        "total_rev": 931693.18,
+        "share_qty": 8.1,
+        "share_rev": 6.91
+      },
+      "全棉时代 纱布浴巾": {
+        "brand": "全棉时代",
+        "total_qty": 6014,
+        "total_rev": 879169.86,
+        "share_qty": 6.88,
+        "share_rev": 6.52
+      }
+    },
+    "服装鞋帽": {
+      "UNIQLO UT印花T恤": {
+        "brand": "UNIQLO",
+        "total_qty": 14717,
+        "total_rev": 6666084.97,
+        "share_qty": 17.09,
+        "share_rev": 18.76
+      },
+      "李宁 悟道2.0跑鞋": {
+        "brand": "李宁",
+        "total_qty": 12370,
+        "total_rev": 4651809.29,
+        "share_qty": 14.36,
+        "share_rev": 13.09
+      },
+      "Nike Air Jordan 1": {
+        "brand": "Nike",
+        "total_qty": 11331,
+        "total_rev": 4320707.82,
+        "share_qty": 13.16,
+        "share_rev": 12.16
+      },
+      "UNIQLO 牛仔裤": {
+        "brand": "UNIQLO",
+        "total_qty": 10894,
+        "total_rev": 4258611.64,
+        "share_qty": 12.65,
+        "share_rev": 11.99
+      },
+      "李宁 羽毛球拍": {
+        "brand": "李宁",
+        "total_qty": 10048,
+        "total_rev": 4620350.55,
+        "share_qty": 11.67,
+        "share_rev": 13.0
+      },
+      "李宁 中国李宁卫衣": {
+        "brand": "李宁",
+        "total_qty": 8239,
+        "total_rev": 3265568.34,
+        "share_qty": 9.57,
+        "share_rev": 9.19
+      },
+      "UNIQLO 羽绒服": {
+        "brand": "UNIQLO",
+        "total_qty": 7730,
+        "total_rev": 3041948.56,
+        "share_qty": 8.98,
+        "share_rev": 8.56
+      },
+      "Nike Dunk Low": {
+        "brand": "Nike",
+        "total_qty": 5931,
+        "total_rev": 2893216.31,
+        "share_qty": 6.89,
+        "share_rev": 8.14
+      },
+      "Nike 运动T恤": {
+        "brand": "Nike",
+        "total_qty": 4868,
+        "total_rev": 1812000.01,
+        "share_qty": 5.65,
+        "share_rev": 5.1
+      }
+    },
+    "美妆护肤": {
+      "花西子 玉养粉底液": {
+        "brand": "花西子",
+        "total_qty": 14430,
+        "total_rev": 4037512.45,
+        "share_qty": 15.23,
+        "share_rev": 16.22
+      },
+      "Lancôme 持妆粉底液": {
+        "brand": "Lancôme",
+        "total_qty": 12207,
+        "total_rev": 3687799.26,
+        "share_qty": 12.88,
+        "share_rev": 14.81
+      },
+      "花西子 同心锁口红": {
+        "brand": "花西子",
+        "total_qty": 11770,
+        "total_rev": 3699468.07,
+        "share_qty": 12.42,
+        "share_rev": 14.86
+      },
+      "完美日记 小金盖粉底液": {
+        "brand": "完美日记",
+        "total_qty": 11681,
+        "total_rev": 2735328.2,
+        "share_qty": 12.33,
+        "share_rev": 10.99
+      },
+      "Lancôme 菁纯面霜": {
+        "brand": "Lancôme",
+        "total_qty": 9952,
+        "total_rev": 1761498.62,
+        "share_qty": 10.5,
+        "share_rev": 7.08
+      },
+      "完美日记 探险家眼影盘": {
+        "brand": "完美日记",
+        "total_qty": 9875,
+        "total_rev": 2652668.12,
+        "share_qty": 10.42,
+        "share_rev": 10.66
+      },
+      "花西子 空气蜜粉": {
+        "brand": "花西子",
+        "total_qty": 9111,
+        "total_rev": 2254245.25,
+        "share_qty": 9.61,
+        "share_rev": 9.06
+      },
+      "完美日记 丝绒唇釉": {
+        "brand": "完美日记",
+        "total_qty": 7969,
+        "total_rev": 2350688.73,
+        "share_qty": 8.41,
+        "share_rev": 9.44
+      },
+      "Lancôme 小黑瓶精华": {
+        "brand": "Lancôme",
+        "total_qty": 7777,
+        "total_rev": 1714161.43,
+        "share_qty": 8.21,
+        "share_rev": 6.89
+      }
+    },
+    "食品生鲜": {
+      "三只松鼠 碧根果": {
+        "brand": "三只松鼠",
+        "total_qty": 13970,
+        "total_rev": 1740430.86,
+        "share_qty": 13.15,
+        "share_rev": 16.09
+      },
+      "蒙牛 安慕希酸奶": {
+        "brand": "蒙牛",
+        "total_qty": 13681,
+        "total_rev": 1179786.16,
+        "share_qty": 12.87,
+        "share_rev": 10.91
+      },
+      "农夫山泉 东方树叶": {
+        "brand": "农夫山泉",
+        "total_qty": 13305,
+        "total_rev": 1303524.15,
+        "share_qty": 12.52,
+        "share_rev": 12.05
+      },
+      "三只松鼠 每日坚果": {
+        "brand": "三只松鼠",
+        "total_qty": 12619,
+        "total_rev": 1522925.09,
+        "share_qty": 11.87,
+        "share_rev": 14.08
+      },
+      "农夫山泉 NFC果汁": {
+        "brand": "农夫山泉",
+        "total_qty": 11837,
+        "total_rev": 1239807.53,
+        "share_qty": 11.14,
+        "share_rev": 11.46
+      },
+      "农夫山泉 天然矿泉水": {
+        "brand": "农夫山泉",
+        "total_qty": 11514,
+        "total_rev": 1025433.12,
+        "share_qty": 10.83,
+        "share_rev": 9.48
+      },
+      "蒙牛 特仑苏纯牛奶": {
+        "brand": "蒙牛",
+        "total_qty": 11069,
+        "total_rev": 1004684.8,
+        "share_qty": 10.42,
+        "share_rev": 9.29
+      },
+      "三只松鼠 芒果干": {
+        "brand": "三只松鼠",
+        "total_qty": 10901,
+        "total_rev": 993143.09,
+        "share_qty": 10.26,
+        "share_rev": 9.18
+      },
+      "蒙牛 奶酪棒": {
+        "brand": "蒙牛",
+        "total_qty": 7378,
+        "total_rev": 808435.61,
+        "share_qty": 6.94,
+        "share_rev": 7.47
+      }
+    }
+  },
+  "brand_shares": {
+    "3C电子": {
+      "小米": {
+        "total_qty": 41333,
+        "total_rev": 232551701.55,
+        "share_qty": 40.0,
+        "share_rev": 40.7,
+        "radar_score": 95.0
+      },
+      "Apple": {
+        "total_qty": 32690,
+        "total_rev": 178322571.49,
+        "share_qty": 31.64,
+        "share_rev": 31.21,
+        "radar_score": 82.5
+      },
+      "华为": {
+        "total_qty": 29299,
+        "total_rev": 160479245.23,
+        "share_qty": 28.36,
+        "share_rev": 28.09,
+        "radar_score": 77.5
+      }
+    },
+    "家居日用": {
+      "MUJI": {
+        "total_qty": 33096,
+        "total_rev": 5084688.33,
+        "share_qty": 37.86,
+        "share_rev": 37.7,
+        "radar_score": 95.0
+      },
+      "网易严选": {
+        "total_qty": 28377,
+        "total_rev": 4319574.46,
+        "share_qty": 32.46,
+        "share_rev": 32.02,
+        "radar_score": 86.4
+      },
+      "全棉时代": {
+        "total_qty": 25941,
+        "total_rev": 4083915.68,
+        "share_qty": 29.68,
+        "share_rev": 30.28,
+        "radar_score": 82.0
+      }
+    },
+    "服装鞋帽": {
+      "UNIQLO": {
+        "total_qty": 33341,
+        "total_rev": 13966645.17,
+        "share_qty": 38.71,
+        "share_rev": 39.31,
+        "radar_score": 95.0
+      },
+      "李宁": {
+        "total_qty": 30657,
+        "total_rev": 12537728.18,
+        "share_qty": 35.59,
+        "share_rev": 35.29,
+        "radar_score": 90.2
+      },
+      "Nike": {
+        "total_qty": 22130,
+        "total_rev": 9025924.14,
+        "share_qty": 25.69,
+        "share_rev": 25.4,
+        "radar_score": 74.8
+      }
+    },
+    "美妆护肤": {
+      "花西子": {
+        "total_qty": 35311,
+        "total_rev": 9991225.77,
+        "share_qty": 37.26,
+        "share_rev": 40.14,
+        "radar_score": 95.0
+      },
+      "Lancôme": {
+        "total_qty": 29936,
+        "total_rev": 7163459.31,
+        "share_qty": 31.59,
+        "share_rev": 28.78,
+        "radar_score": 85.9
+      },
+      "完美日记": {
+        "total_qty": 29525,
+        "total_rev": 7738685.05,
+        "share_qty": 31.15,
+        "share_rev": 31.09,
+        "radar_score": 85.2
+      }
+    },
+    "食品生鲜": {
+      "三只松鼠": {
+        "total_qty": 37490,
+        "total_rev": 4256499.04,
+        "share_qty": 35.28,
+        "share_rev": 39.35,
+        "radar_score": 95.0
+      },
+      "农夫山泉": {
+        "total_qty": 36656,
+        "total_rev": 3568764.8,
+        "share_qty": 34.49,
+        "share_rev": 32.99,
+        "radar_score": 93.7
+      },
+      "蒙牛": {
+        "total_qty": 32128,
+        "total_rev": 2992906.57,
+        "share_qty": 30.23,
+        "share_rev": 27.67,
+        "radar_score": 86.4
+      }
+    }
+  }
+}

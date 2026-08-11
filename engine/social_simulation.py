@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any, Callable
 
-from engine.maut_model import clamp, compute_maut_scores, confidence_for_decision, safe_float, weighted_purchase_intent
+from engine.maut_model import clamp, compute_maut_scores, confidence_for_decision, decision_weight_profile, safe_float, weighted_purchase_intent
 from engine.social_network import social_network_config
 
 
@@ -107,13 +107,14 @@ def _round_one_decisions(
     initial_decisions: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     product = snapshot.get("product_definition") or {}
+    weights = decision_weight_profile(snapshot)["weights"]
     agent_map = {str(agent.get("agent_id")): agent for agent in agents}
     decision_map = {str(decision.get("agent_id")): decision for decision in initial_decisions if isinstance(decision, dict)}
     rows: list[dict[str, Any]] = []
     for agent_id, agent in agent_map.items():
         copied = dict(decision_map.get(agent_id) or {"agent_id": agent_id})
         maut_scores = compute_maut_scores(snapshot, evidence, agent)
-        score = weighted_purchase_intent(maut_scores)
+        score = weighted_purchase_intent(maut_scores, weights)
         copied.update(
             {
                 "agent_id": agent_id,
@@ -140,6 +141,7 @@ def _propagate_round(
     round_number: int,
 ) -> tuple[list[dict[str, Any]], float]:
     product = snapshot.get("product_definition") or {}
+    weights = decision_weight_profile(snapshot)["weights"]
     previous_map = {str(item.get("agent_id")): item for item in previous_decisions if isinstance(item, dict)}
     rows: list[dict[str, Any]] = []
     max_change = 0.0
@@ -154,7 +156,7 @@ def _propagate_round(
         trust = clamp(safe_float(agent.get("trust_sensitivity"), 0.5))
         social_score = clamp(0.5 + trust * (neighbor_avg - 0.5))
         maut_scores = compute_maut_scores(snapshot, evidence, agent, social_influence=social_score)
-        score = weighted_purchase_intent(maut_scores)
+        score = weighted_purchase_intent(maut_scores, weights)
         previous_score = clamp(safe_float(copied.get("purchase_intent_score"), score))
         change = abs(score - previous_score)
         max_change = max(max_change, change)

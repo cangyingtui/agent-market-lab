@@ -3,10 +3,39 @@ from __future__ import annotations
 from typing import Any
 
 
-PRODUCT_EVIDENCE_KEYS = ("product_query", "competitor_query", "product_competition")
-USER_EVIDENCE_KEYS = ("market_query", "crowd_preference")
-MARKET_EVIDENCE_KEYS = ("market_query", "market_strategy")
-RAG_QUERY_KEYS = ("product_query", "competitor_query", "market_query")
+PUBLIC_COMPETITOR_EVIDENCE_KEY = "public_competitor_evidence"
+PUBLIC_STRATEGY_EVIDENCE_KEY = "public_strategy_evidence"
+PUBLIC_SCENE_EVIDENCE_KEY = "public_scene_evidence"
+PUBLIC_MARKET_EVIDENCE_KEY = "public_market_evidence"
+
+PRODUCT_EVIDENCE_KEYS = (
+    "product_query",
+    "competitor_query",
+    "product_competition",
+    PUBLIC_COMPETITOR_EVIDENCE_KEY,
+)
+USER_EVIDENCE_KEYS = (
+    "market_query",
+    "crowd_preference",
+    PUBLIC_SCENE_EVIDENCE_KEY,
+    PUBLIC_MARKET_EVIDENCE_KEY,
+)
+MARKET_EVIDENCE_KEYS = (
+    "market_query",
+    "market_strategy",
+    PUBLIC_STRATEGY_EVIDENCE_KEY,
+    PUBLIC_SCENE_EVIDENCE_KEY,
+    PUBLIC_MARKET_EVIDENCE_KEY,
+)
+RAG_QUERY_KEYS = (
+    "product_query",
+    "competitor_query",
+    "market_query",
+    PUBLIC_COMPETITOR_EVIDENCE_KEY,
+    PUBLIC_STRATEGY_EVIDENCE_KEY,
+    PUBLIC_SCENE_EVIDENCE_KEY,
+    PUBLIC_MARKET_EVIDENCE_KEY,
+)
 
 
 def evidence_items(evidence: dict[str, list[dict[str, Any]]], *keys: str) -> list[dict[str, Any]]:

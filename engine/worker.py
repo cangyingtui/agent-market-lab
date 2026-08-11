@@ -38,13 +38,14 @@ from app.time_utils import utc_now_iso, utc_now_naive  # noqa: E402
 from engine.agent_generator import generate_agents  # noqa: E402
 from engine.aggregation import aggregate_results  # noqa: E402
 from engine.chart_data import build_chart_data  # noqa: E402
-from engine.data_enrichment import candidate_to_evidence, run_data_enrichment  # noqa: E402
+from engine.data_enrichment import candidate_to_evidence, evidence_cards_to_evidence, run_data_enrichment  # noqa: E402
 from engine.decision_model import generate_purchase_decisions  # noqa: E402
 from engine.distill_client import run_distill_checks_if_enabled  # noqa: E402
 from engine.evidence_utils import dedupe_and_rank, rag_contract_fields  # noqa: E402
 from engine.fact_formatter import format_evidence_for_engine  # noqa: E402
 from engine.formal_logger import compact, write_formal_task_log  # noqa: E402
 from engine.maut_model import build_decision_model_summary, enrich_decisions_with_maut  # noqa: E402
+from engine.propagation_funnel import build_propagation_funnel  # noqa: E402
 from engine.report_generator import generate_simulation_report, split_evidence  # noqa: E402
 from engine.social_simulation import run_social_simulation  # noqa: E402
 from knowledge_model.product_evidence import search_product_evidence  # noqa: E402
@@ -524,7 +525,19 @@ def build_queries(snapshot: dict[str, Any]) -> dict[str, str]:
         if name:
             strategy_names.append(name)
     strategy = "；".join(dict.fromkeys(strategy_names)) or str(market.get("strategy") or "").strip()
-    scene = market.get("scene") or ""
+    raw_scenes = market.get("scenes")
+    if isinstance(raw_scenes, list):
+        scene_names = []
+        for item in raw_scenes:
+            if isinstance(item, dict):
+                name = str(item.get("name") or item.get("scene") or item.get("title") or "").strip()
+            else:
+                name = str(item or "").strip()
+            if name and name not in scene_names:
+                scene_names.append(name)
+        scene = "；".join(scene_names) or str(market.get("scene") or "").strip()
+    else:
+        scene = str(market.get("scene") or "").strip()
     profile_text = crowd_profile_text(market)
 
     return {
@@ -824,10 +837,16 @@ def process_task(task: dict[str, Any]) -> None:
             log_task(db, project, task_id, "rag", "准备执行三类 RAG 查询", detail={"queries": queries})
             update_progress(task_id, project.id, "running", 18, "rag", "正在检索市场证据")
             evidence = run_rag_queries(db, project, task_id, queries)
-            enrichment_result = run_data_enrichment(snapshot, evidence)
+            update_progress(task_id, project.id, "running", 24, "public_evidence", "正在补充公开资料")
+            enrichment_result = run_data_enrichment(snapshot, evidence, plan_type=plan_type)
             enrichment_candidates = enrichment_result.get("candidates") if isinstance(enrichment_result.get("candidates"), list) else []
+            public_evidence_cards = enrichment_result.get("evidence_cards") if isinstance(enrichment_result.get("evidence_cards"), list) else []
             auto_filled_prices = enrichment_result.get("auto_filled_prices") if isinstance(enrichment_result.get("auto_filled_prices"), list) else []
-            if enrichment_candidates:
+            public_evidence_groups = evidence_cards_to_evidence(public_evidence_cards)
+            for group, items in public_evidence_groups.items():
+                if isinstance(items, list) and items:
+                    evidence.setdefault(group, []).extend(items)
+            if public_evidence_cards or enrichment_candidates:
                 auto_filled_ids = {
                     str(item.get("product_id"))
                     for item in auto_filled_prices
@@ -843,8 +862,9 @@ def process_task(task: dict[str, Any]) -> None:
                     project,
                     task_id,
                     "data_enrichment",
-                    f"已生成 {len(enrichment_candidates)} 条网页补全，其中自动回填价格 {len(auto_filled_prices)} 条，未写入正式产品库",
+                    f"已整理 {len(public_evidence_cards)} 条公开资料证据，补价候选 {len(enrichment_candidates)} 条，其中自动回填价格 {len(auto_filled_prices)} 条",
                     detail={
+                        "public_evidence_card_count": len(public_evidence_cards),
                         "candidate_count": len(enrichment_candidates),
                         "auto_filled_price_count": len(auto_filled_prices),
                         "status": enrichment_result.get("status"),
@@ -856,8 +876,8 @@ def process_task(task: dict[str, Any]) -> None:
                     project,
                     task_id,
                     "data_enrichment",
-                    "数据补全未生成候选，主流程继续",
-                    "warning",
+                    "公开资料补充未返回可用补价候选，已继续本地仿真",
+                    "info",
                     {"status": enrichment_result.get("status"), "reason": enrichment_result.get("reason"), "errors": enrichment_result.get("errors")},
                 )
 
@@ -906,7 +926,13 @@ def process_task(task: dict[str, Any]) -> None:
             )
             purchase_decisions = social_simulation.pop("final_decisions")
             model_validation = social_simulation.pop("final_validation")
-            decision_model_summary = build_decision_model_summary(purchase_decisions)
+            decision_model_summary = build_decision_model_summary(purchase_decisions, snapshot)
+            propagation_funnel = build_propagation_funnel(
+                snapshot,
+                agents,
+                purchase_decisions,
+                social_simulation,
+            )
             log_task(
                 db,
                 project,
@@ -978,8 +1004,17 @@ def process_task(task: dict[str, Any]) -> None:
             }
             result_data.update(rag_contract)
             result_data["formatted_evidence"] = formatted_evidence
-            result_data["data_enrichment"] = {key: value for key, value in enrichment_result.items() if key != "candidates"}
+            result_data["data_enrichment"] = {key: value for key, value in enrichment_result.items() if key not in {"candidates", "evidence_cards"}}
             result_data["data_enrichment_candidates"] = enrichment_candidates
+            result_data["web_evidence"] = {
+                "provider": enrichment_result.get("provider"),
+                "model": enrichment_result.get("model"),
+                "status": enrichment_result.get("status"),
+                "query_count": enrichment_result.get("query_count"),
+                "query_limit": enrichment_result.get("query_limit"),
+                "cards": public_evidence_cards,
+            }
+            result_data["public_evidence_cards"] = public_evidence_cards
             result_data["market_config"] = snapshot.get("market_config") if isinstance(snapshot.get("market_config"), dict) else {}
             result_data["crowd_profile"] = normalize_crowd_profile(snapshot.get("market_config") if isinstance(snapshot.get("market_config"), dict) else {})
             result_data["crowd_segments"] = normalize_crowd_segments(snapshot.get("market_config") if isinstance(snapshot.get("market_config"), dict) else {})
@@ -989,8 +1024,18 @@ def process_task(task: dict[str, Any]) -> None:
             result_data["distill_summary"] = distill_summary
             result_data["model_validation"] = model_validation
             result_data["social_simulation"] = social_simulation
+            result_data["propagation_funnel"] = propagation_funnel
             result_data["aggregation"] = aggregation
             result_data["chart_data"] = chart_data
+            result_data["market_share_scope"] = chart_data.get("market_share_scope", {})
+            result_data["market_share_scenarios"] = chart_data.get("market_share_scenarios", [])
+            result_data["data_gaps"] = chart_data.get("data_gaps", {})
+            result_data["channel_scenarios"] = decision_model_summary.get("channel_scenarios", [])
+            if chart_data.get("commercial_model_version"):
+                result_data["commercial_model_version"] = chart_data.get("commercial_model_version")
+                result_data["strategy_economics"] = chart_data.get("strategy_economics", {})
+                result_data["differentiation_audit"] = chart_data.get("differentiation_audit", {})
+                result_data["simulation_boundaries"] = chart_data.get("simulation_boundaries", {})
             result_data["plan_type_used"] = project.plan_type_used or "basic"
             result_data["data_quality"] = aggregation.get("evidence_quality", {})
             result_data["purchase_intent"] = chart_data["overview_metrics"]["purchase_intent_index"]

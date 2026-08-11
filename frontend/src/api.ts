@@ -2,6 +2,7 @@ export type JsonObject = Record<string, unknown>;
 
 const API_BASE = import.meta.env.VITE_API_BASE || "";
 const TOKEN_KEY = "agentsim_token";
+const REQUEST_TIMEOUT_MS = 45000;
 
 export function getToken(): string {
   return localStorage.getItem(TOKEN_KEY) || "";
@@ -24,8 +25,25 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
-  const text = await response.text();
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  let response: Response;
+  let text = "";
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      ...options,
+      headers,
+      signal: options.signal || controller.signal
+    });
+    text = await response.text();
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("请求响应超时，请稍后重试；已填写内容仍保留在页面上。");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
   let data: JsonObject | null = null;
   if (text) {
     try {
@@ -50,6 +68,7 @@ export const api = {
   me: () => request<JsonObject>("/api/auth/me"),
   profile: () => request<JsonObject>("/api/user/profile"),
   updateProfile: (payload: JsonObject) => request<JsonObject>("/api/user/profile", { method: "PUT", body: JSON.stringify(payload) }),
+  uploadAvatar: (payload: JsonObject) => request<JsonObject>("/api/user/avatar", { method: "POST", body: JSON.stringify(payload) }),
   upgrade: () => request<JsonObject>("/api/user/upgrade", { method: "POST", body: JSON.stringify({ reason: "frontend_upgrade" }) }),
   categories: () => request<JsonObject>("/api/categories"),
   fields: (categoryId: string | number) => request<JsonObject>(`/api/categories/${categoryId}/fields`),
@@ -60,6 +79,7 @@ export const api = {
   createProject: (project_name: string) =>
     request<JsonObject>("/api/simulations", { method: "POST", body: JSON.stringify({ project_name }) }),
   getProject: (id: string | number) => request<JsonObject>(`/api/simulations/${id}`),
+  cloneProject: (id: string | number) => request<JsonObject>(`/api/simulations/${id}/clone`, { method: "POST" }),
   deleteProject: (id: string | number) => request<JsonObject>(`/api/simulations/${id}`, { method: "DELETE" }),
   saveStep1: (id: string | number, product_definition: JsonObject) =>
     request<JsonObject>(`/api/simulations/${id}/step1`, { method: "PUT", body: JSON.stringify({ product_definition }) }),
@@ -71,6 +91,8 @@ export const api = {
   logs: (id: string | number, limit = 100) => request<JsonObject>(`/api/simulations/${id}/logs?limit=${limit}`),
   queueStatus: () => request<JsonObject>("/api/debug/queue/status"),
   report: (id: string | number) => request<JsonObject>(`/api/simulations/${id}/report`),
+  whatIf: (id: string | number, payload: JsonObject) =>
+    request<JsonObject>(`/api/simulations/${id}/what-if`, { method: "POST", body: JSON.stringify(payload) }),
   cancel: (id: string | number) => request<JsonObject>(`/api/simulations/${id}/cancel`, { method: "POST" }),
   exportReport: (id: string | number, format: "json" | "markdown" | "excel" | "pdf") =>
     request<JsonObject>(`/api/simulations/${id}/exports`, { method: "POST", body: JSON.stringify({ format }) }),

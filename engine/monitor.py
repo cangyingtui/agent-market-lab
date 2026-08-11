@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 import time
 from pathlib import Path
@@ -12,6 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from app.config import settings  # noqa: E402
+from app.custom_competitor_backfill import process_next_job  # noqa: E402
 from app.database import SessionLocal  # noqa: E402
 from app.models import QuotaLog, SimulationProject, SimulationTaskLog, User  # noqa: E402
 from app.redis_client import get_redis_client, redis_json_set  # noqa: E402
@@ -23,8 +25,61 @@ from app.runtime_status import (  # noqa: E402
     report_wait_progress_percent,
     report_wait_remaining_seconds,
 )
-from app.task_keys import progress_key, project_lock_key, project_progress_key  # noqa: E402
+from app.task_keys import heavy_resource_lock_key, progress_key, project_lock_key, project_progress_key  # noqa: E402
 from app.time_utils import utc_now_iso, utc_now_naive  # noqa: E402
+
+
+logger = logging.getLogger(__name__)
+_next_custom_backfill_poll_at = 0.0
+
+
+def custom_competitor_backfill_is_idle(client) -> bool:
+    """Only allow DB-only backfill after simulations and exports are fully idle."""
+    if not settings.custom_competitor_backfill_enabled:
+        return False
+    queues = {
+        settings.redis_pro_queue,
+        settings.redis_basic_queue,
+        settings.redis_task_queue,
+        settings.redis_export_queue,
+    }
+    if any(client.llen(queue) > 0 for queue in queues):
+        return False
+    if client.exists(heavy_resource_lock_key()):
+        return False
+    if next(client.scan_iter("simulation:project:*:running", count=1), None) is not None:
+        return False
+    return True
+
+
+def process_custom_competitor_backfill_if_idle(client) -> dict[str, int]:
+    global _next_custom_backfill_poll_at
+    metrics = {
+        "custom_backfill_processed": 0,
+        "custom_backfill_inserted": 0,
+        "custom_backfill_matched": 0,
+        "custom_backfill_skipped": 0,
+    }
+    now = time.monotonic()
+    if now < _next_custom_backfill_poll_at:
+        return metrics
+    _next_custom_backfill_poll_at = now + max(5, settings.custom_competitor_backfill_poll_seconds)
+    if not custom_competitor_backfill_is_idle(client):
+        return metrics
+    try:
+        with SessionLocal() as db:
+            result = process_next_job(db)
+    except Exception:
+        logger.exception("低优先级自定义竞品复用处理失败")
+        return metrics
+    if not result:
+        return metrics
+    items = result.get("items") if isinstance(result.get("items"), list) else []
+    metrics["custom_backfill_processed"] = 1
+    metrics["custom_backfill_inserted"] = sum(item.get("action") == "inserted" for item in items)
+    metrics["custom_backfill_matched"] = sum(item.get("action") == "matched_existing" for item in items)
+    metrics["custom_backfill_skipped"] = sum(item.get("action") == "skipped" for item in items)
+    return metrics
 
 
 def rollback_quota_if_needed(db, project: SimulationProject, task_id: str, reason: str) -> None:
@@ -150,7 +205,7 @@ def promote_report_waiting_projects(db, project_id: int | None = None) -> dict[s
     return {"report_waiting": waiting, "report_promoted": promoted}
 
 
-def scan_once(project_id: int | None = None) -> dict[str, int]:
+def scan_once(project_id: int | None = None, *, allow_backfill: bool = True) -> dict[str, int]:
     client = get_redis_client()
     checked = 0
     failed = 0
@@ -191,12 +246,22 @@ def scan_once(project_id: int | None = None) -> dict[str, int]:
                 client.delete(key_text)
                 client.delete(f"simulation:heartbeat:{task_id}")
                 failed += 1
-    return {"checked": checked, "failed": failed, **report_wait_result}
+    backfill_result = (
+        process_custom_competitor_backfill_if_idle(client)
+        if project_id is None and allow_backfill
+        else {
+            "custom_backfill_processed": 0,
+            "custom_backfill_inserted": 0,
+            "custom_backfill_matched": 0,
+            "custom_backfill_skipped": 0,
+        }
+    )
+    return {"checked": checked, "failed": failed, **report_wait_result, **backfill_result}
 
 
 def run_loop(once: bool, interval: int) -> int:
     while True:
-        scan_once()
+        scan_once(allow_backfill=not once)
         if once:
             return 0
         time.sleep(interval)

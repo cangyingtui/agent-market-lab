@@ -6,6 +6,7 @@ from typing import Any
 from urllib.parse import urlparse
 
 from app.config import settings
+from app.openai_compat import create_openai_client
 from app.crowd_profile import crowd_profile_text, normalize_crowd_profile, normalize_crowd_segments
 from app.strategy_recommendations import normalize_strategy_recommendations
 from app.time_utils import utc_now_iso
@@ -15,9 +16,10 @@ from engine.evidence_utils import (
     USER_EVIDENCE_KEYS,
     evidence_items,
 )
+from engine.commercial_model import MODEL_VERSION as COMMERCIAL_MODEL_VERSION, enrich_strategy_recommendations
 
 
-PROMPT_VERSION = "report_builder_v0.1"
+PROMPT_VERSION = "report_builder_v0.2"
 
 REPORT_KEYS = (
     "executive_summary",
@@ -28,6 +30,10 @@ REPORT_KEYS = (
     "strategy_recommendations",
     "risk_warnings",
     "evidence_used",
+    "scenes",
+    "scene_details",
+    "scene_detail",
+    "strategy_details",
 )
 
 BANNED_UNSUPPORTED_TERMS = ("销量第一", "市场份额为", "真实销量", "官方销量")
@@ -36,6 +42,14 @@ BANNED_UNSUPPORTED_TERMS = ("销量第一", "市场份额为", "真实销量", "
 def compact_json(value: Any, max_chars: int = 12000) -> str:
     text = json.dumps(value, ensure_ascii=False, default=str)
     return text[:max_chars]
+
+
+def safe_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, (list, tuple, set)):
+        return "、".join(safe_text(item) for item in value if safe_text(item))
+    return str(value).strip()
 
 
 def base_host(url: str) -> str:
@@ -183,6 +197,14 @@ def normalize_report(data: dict[str, Any], fallback: dict[str, Any]) -> dict[str
     report["llm_model"] = settings.llm_model
     report["is_fallback"] = False
     report["crowd_segments"] = fallback.get("crowd_segments") or []
+    if not isinstance(report.get("scenes"), list):
+        report["scenes"] = fallback.get("scenes") or []
+    if not isinstance(report.get("scene_details"), dict):
+        report["scene_details"] = fallback.get("scene_details") or {}
+    if not isinstance(report.get("scene_detail"), dict):
+        report["scene_detail"] = fallback.get("scene_detail") or {}
+    if not isinstance(report.get("strategy_details"), dict):
+        report["strategy_details"] = fallback.get("strategy_details") or {}
     report["prompt_trace"] = {
         "report_builder": {
             "prompt_version": PROMPT_VERSION,
@@ -203,6 +225,9 @@ def evidence_summary(evidence: dict[str, list[dict[str, Any]]]) -> list[dict[str
                     "group": group,
                     "source": item.get("source"),
                     "source_type": item.get("source_type"),
+                    "source_category": item.get("source_category") or (
+                        "公开资料补充" if str(item.get("source") or "").startswith("public_evidence") else ""
+                    ),
                     "score": item.get("score"),
                     "snippet": item.get("snippet"),
                     "profile_tags": classify_user_profile_text(str(item.get("snippet") or ""))
@@ -228,21 +253,35 @@ def build_fallback_report(
     profile_text = crowd_profile_text(market)
     product_name = product.get("product_name") or product.get("name") or snapshot.get("project_name") or "当前产品"
     category = product.get("subcategory") or product.get("category") or "目标品类"
-    price = product.get("price_cny") or "待确认"
+    price = product.get("price_cny") or product.get("price") or "待确认"
     product_evidence = evidence_items(evidence, *PRODUCT_EVIDENCE_KEYS)
     crowd_evidence = evidence_items(evidence, *USER_EVIDENCE_KEYS, *MARKET_EVIDENCE_KEYS)
     price_coverage = product_price_coverage(evidence)
     strategy_items = market.get("strategies") if isinstance(market.get("strategies"), list) else []
+    strategy_details = market.get("strategy_details") if isinstance(market.get("strategy_details"), dict) else {}
+    raw_scenes = market.get("scenes") if isinstance(market.get("scenes"), list) else []
+    scenes = [str(item).strip() for item in raw_scenes if str(item or "").strip()]
+    if not scenes and str(market.get("scene") or "").strip():
+        scenes = [str(market.get("scene")).strip()]
+    scene_details = market.get("scene_details") if isinstance(market.get("scene_details"), dict) else {}
+    scene_detail = market.get("scene_detail") if isinstance(market.get("scene_detail"), dict) else {}
+    if scene_detail and scenes and scenes[0] not in scene_details:
+        scene_details = {**scene_details, scenes[0]: scene_detail}
     selected_strategies = []
     for item in strategy_items:
         if isinstance(item, dict):
             name = str(item.get("name") or item.get("strategy") or "").strip()
             if name:
-                selected_strategies.append({**item, "name": name})
+                detail = strategy_details.get(name) if isinstance(strategy_details.get(name), dict) else {}
+                selected_strategies.append({**detail, **item, "name": name})
         elif str(item or "").strip():
-            selected_strategies.append({"name": str(item).strip()})
+            name = str(item).strip()
+            detail = strategy_details.get(name) if isinstance(strategy_details.get(name), dict) else {}
+            selected_strategies.append({**detail, "name": name})
     if not selected_strategies and str(market.get("strategy") or "").strip():
-        selected_strategies.append({"name": str(market.get("strategy")).strip()})
+        name = str(market.get("strategy")).strip()
+        detail = strategy_details.get(name) if isinstance(strategy_details.get(name), dict) else {}
+        selected_strategies.append({**detail, "name": name})
 
     report = {
         "executive_summary": (
@@ -278,6 +317,10 @@ def build_fallback_report(
         "crowd_segments": crowd_segments,
         "crowd_profile": crowd_profile,
         "selected_strategies": selected_strategies,
+        "strategy_details": strategy_details,
+        "scenes": scenes,
+        "scene_details": scene_details,
+        "scene_detail": scene_detail,
         "competitor_insights": [
             {
                 "source": item.get("source"),
@@ -292,9 +335,31 @@ def build_fallback_report(
             "summary": "结构化产品证据已用于识别相近品类、品牌、规格和价格带；后续可加入销量或渠道数据增强判断。",
         },
         "strategy_recommendations": [
-            "围绕用户高频关注点组织卖点表达，避免只堆参数。",
-            "优先对比同品类竞品的核心规格和价格带，形成清晰差异化。",
-            "报告生成后建议人工复核 evidence 中价格缺失或规格不完整的产品。",
+            {
+                "strategy": item.get("name") or "基础转化策略",
+                "actions": [
+                    safe_text(safe_action)
+                    for safe_action in [
+                        item.get("execution_actions") or item.get("action") or f"围绕「{item.get('name') or '当前策略'}」组织核心卖点表达",
+                        item.get("channels") or item.get("touch_channels") or "结合目标客群选择触达渠道",
+                    ]
+                    if safe_text(safe_action)
+                ][:3],
+                "expected_impact": item.get("expected_impact") or "基于已填写配置与仿真结果生成，公开资料覆盖有限时建议人工复核。",
+            }
+            for item in selected_strategies[:5]
+        ]
+        or [
+            {
+                "strategy": "基础卖点转化策略",
+                "actions": ["围绕用户高频关注点组织卖点表达，避免只堆参数。", "对比同品类竞品的核心规格和价格带，形成清晰差异化。"],
+                "expected_impact": "在策略配置较少时提供基础转化参考。",
+            },
+            {
+                "strategy": "证据复核策略",
+                "actions": ["报告生成后复核价格缺失或规格不完整的竞品。"],
+                "expected_impact": "减少价格带和竞品结论偏差。",
+            },
         ],
         "risk_warnings": [
             "当前 FAISS 语料主要是用户画像，竞品结论依赖 MySQL 产品表。",
@@ -319,6 +384,8 @@ def build_fallback_report(
         report["llm_error"] = error
         report["prompt_trace"]["report_builder"]["error"] = error
     report["strategy_recommendations"] = normalize_strategy_recommendations(report["strategy_recommendations"])
+    if snapshot.get("commercial_model_version") == COMMERCIAL_MODEL_VERSION:
+        report["strategy_recommendations"] = enrich_strategy_recommendations(report["strategy_recommendations"], snapshot)
     report["quality_warnings"] = validate_report(report, evidence)
     return report
 
@@ -356,8 +423,17 @@ def build_report_prompt(snapshot: dict[str, Any], evidence: dict[str, list[dict[
         "instructions": [
             "executive_summary 用 2-4 句中文概括机会、竞品、价格和主要风险。",
             "target_segments、competitor_insights、strategy_recommendations、risk_warnings 必须是数组。",
-            "strategy_recommendations 的每一项必须是对象，字段固定为 strategy、actions、expected_impact；actions 必须是字符串数组。",
+            "strategy_recommendations 的每一项必须是对象，至少包含 strategy、actions、expected_impact；actions 必须是字符串数组。",
+            "策略建议优先依据专家策略先验、目标人群和场景匹配，不得无依据均分策略、渠道或参数分数。",
+            "不得为了制造差异编造梯度；如果多个结果高度接近，应解释其输入或证据成因。",
+            "买一送一、买二送一、大额满减、免单等高让利策略默认低优先级，只有场景、人群和渠道高度吻合时才作为条件建议。",
+            "每组策略整体兼顾预期效果和执行风险，但不要为每条建议重复成本免责声明。",
+            "不得将仿真 ROI 描述为真实财务收益、财务 ROI 或收益承诺。",
+            "策略建议可增加 applicable_conditions、recommendation_priority、expert_basis、commercial_feasibility 字段。",
             "pricing_analysis 必须是对象，包含 summary 和 reference_price。",
+            "如果 snapshot.market_config.strategy_details、scenes、scene_details 或 scene_detail 存在，策略和场景解释必须优先使用这些字段。",
+            "如果用户已填写营销策略，但公开资料证据有限，也必须输出基于配置与仿真结果的模拟分析；可标注“公开资料覆盖有限”，不要输出空策略或缺配置警告。",
+            "如果 evidence_context 中包含 source_category=公开资料补充 的证据，优先用于竞品补价、场景痛点和策略解释，但需保留风险提示。",
             "evidence_used 必须列出被使用的 source、source_type、snippet。",
             "如果竞品价格缺失，pricing_analysis 或 risk_warnings 必须明确说明价格数据不完整。",
             "不要编造销量、市场份额、排名、真实用户数量等输入中不存在的数据。",
@@ -370,9 +446,7 @@ def build_report_prompt(snapshot: dict[str, Any], evidence: dict[str, list[dict[
 
 
 def call_llm_report(snapshot: dict[str, Any], evidence: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
-    from openai import OpenAI
-
-    client = OpenAI(
+    client = create_openai_client(
         api_key=settings.llm_api_key,
         base_url=settings.llm_api_base or None,
         timeout=settings.llm_timeout_seconds,
@@ -417,6 +491,8 @@ def generate_simulation_report(
         data = call_llm_report(snapshot, evidence)
         prompt_trace = data.pop("_prompt_trace", {})
         report = normalize_report(data, fallback)
+        if snapshot.get("commercial_model_version") == COMMERCIAL_MODEL_VERSION:
+            report["strategy_recommendations"] = enrich_strategy_recommendations(report["strategy_recommendations"], snapshot)
         report["prompt_trace"]["report_builder"].update(prompt_trace)
         quality_warnings = validate_report(report, evidence)
         if quality_warnings:

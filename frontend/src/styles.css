@@ -572,6 +572,55 @@ select {
   border-top: 1px solid #eef2f7;
 }
 
+.settings-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inline-detail-link {
+  padding-inline: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.inline-detail-link:hover {
+  color: #2563eb;
+}
+
+.selected-detail-list {
+  margin: -6px 0 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.selected-detail-list .ant-list-item {
+  padding: 6px 10px;
+}
+
+.muted-block {
+  margin: 0 !important;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.price-missing-inline {
+  white-space: nowrap;
+}
+
+.muted-help-icon {
+  color: #94a3b8;
+  cursor: help;
+  font-size: 13px;
+}
+
+.tiny-price-note {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
 .run-action-card {
   margin-bottom: 16px;
   border-color: #bfdbfe;
@@ -704,6 +753,11 @@ select {
   width: 100%;
   height: 380px;
   min-height: 380px;
+}
+
+.compact-chart {
+  min-height: 260px;
+  height: 260px;
 }
 
 .print-container {
