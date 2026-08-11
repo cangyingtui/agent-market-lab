@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any, Callable
 
-from engine.maut_model import clamp, compute_maut_scores, confidence_for_decision, safe_float, weighted_purchase_intent
+from engine.maut_model import clamp, compute_environment_volatility, apply_environment_perturbation, compute_maut_scores, confidence_for_decision, decision_weight_profile, safe_float, weighted_purchase_intent, adaptive_thresholds, agent_heterogeneity
 from engine.social_network import social_network_config
 
 
@@ -24,8 +24,14 @@ def _weighted_mean(rows: list[tuple[float, float]]) -> float:
     return sum(value * weight for value, weight in rows) / total if total else 0.0
 
 
-def _decision_label(score: float) -> str:
-    return "buy" if score >= 0.68 else "consider" if score >= 0.45 else "not_buy"
+def _decision_label(score: float, low: float = 0.38, high: float = 0.60) -> str:
+    """Classify purchase intent into buy / consider / not_buy.
+
+    Default thresholds are deliberately lower than the old 0.45/0.68 anchors;
+    callers should override with adaptive_thresholds() for each round's actual
+    score distribution. These defaults serve as a safe fallback only.
+    """
+    return "buy" if score >= high else "consider" if score >= low else "not_buy"
 
 
 def _round_summary(
@@ -40,6 +46,7 @@ def _round_summary(
     segment_rows: dict[str, list[tuple[float, float]]] = defaultdict(list)
     segment_counts: Counter[str] = Counter()
     distribution: Counter[str] = Counter()
+    weighted_distribution: Counter[str] = Counter()
     for decision in decisions:
         agent = agent_map.get(str(decision.get("agent_id")), {})
         weight = _weight(agent, decision)
@@ -50,7 +57,9 @@ def _round_summary(
         social_rows.append((social, weight))
         segment_rows[segment].append((score, weight))
         segment_counts[segment] += 1
-        distribution[str(decision.get("decision") or _decision_label(score))] += 1
+        label = str(decision.get("decision") or _decision_label(score))
+        distribution[label] += 1
+        weighted_distribution[label] += weight
     total_weight = sum(weight for _, weight in overall_rows)
     return {
         "round": round_number,
@@ -58,6 +67,9 @@ def _round_summary(
         "social_influence_avg": round(_weighted_mean(social_rows), 4),
         "max_score_change": round(max_score_change, 4),
         "decision_distribution": dict(distribution),
+        "decision_weighted_distribution": {
+            key: round(value, 8) for key, value in weighted_distribution.items()
+        },
         "segment_evolution": [
             {
                 "name": segment,
@@ -107,13 +119,19 @@ def _round_one_decisions(
     initial_decisions: list[dict[str, Any]],
 ) -> list[dict[str, Any]]:
     product = snapshot.get("product_definition") or {}
+    weights = decision_weight_profile(snapshot)["weights"]
+    env_info = compute_environment_volatility(snapshot)
+    env_volatility = env_info["index"]
     agent_map = {str(agent.get("agent_id")): agent for agent in agents}
     decision_map = {str(decision.get("agent_id")): decision for decision in initial_decisions if isinstance(decision, dict)}
     rows: list[dict[str, Any]] = []
     for agent_id, agent in agent_map.items():
         copied = dict(decision_map.get(agent_id) or {"agent_id": agent_id})
         maut_scores = compute_maut_scores(snapshot, evidence, agent)
-        score = weighted_purchase_intent(maut_scores)
+        score = weighted_purchase_intent(maut_scores, weights)
+        score = apply_environment_perturbation(score, agent, env_volatility)
+        # Deterministic agent-level preference noise (simulates unobserved heterogeneity)
+        score = clamp(score + agent_heterogeneity(agent_id))
         copied.update(
             {
                 "agent_id": agent_id,
@@ -123,12 +141,17 @@ def _round_one_decisions(
                 "maut_scores": maut_scores,
                 "maut_weighted_score": score,
                 "purchase_intent_score": score,
-                "decision": _decision_label(score),
                 "simulation_round": 1,
+                "environment_volatility": env_info,
             }
         )
-        copied["confidence"] = confidence_for_decision(copied, product)
         rows.append(copied)
+    # Compute adaptive thresholds from the round's score distribution
+    all_scores = [safe_float(r.get("purchase_intent_score"), 0.5) for r in rows]
+    low_t, high_t = adaptive_thresholds(all_scores)
+    for row in rows:
+        row["decision"] = _decision_label(safe_float(row.get("purchase_intent_score"), 0.5), low_t, high_t)
+        row["confidence"] = confidence_for_decision(row, product)
     return rows
 
 
@@ -140,6 +163,9 @@ def _propagate_round(
     round_number: int,
 ) -> tuple[list[dict[str, Any]], float]:
     product = snapshot.get("product_definition") or {}
+    weights = decision_weight_profile(snapshot)["weights"]
+    env_info = compute_environment_volatility(snapshot)
+    env_volatility = env_info["index"]
     previous_map = {str(item.get("agent_id")): item for item in previous_decisions if isinstance(item, dict)}
     rows: list[dict[str, Any]] = []
     max_change = 0.0
@@ -152,9 +178,17 @@ def _propagate_round(
         ]
         neighbor_avg = sum(neighbor_scores) / len(neighbor_scores) if neighbor_scores else 0.5
         trust = clamp(safe_float(agent.get("trust_sensitivity"), 0.5))
-        social_score = clamp(0.5 + trust * (neighbor_avg - 0.5))
-        maut_scores = compute_maut_scores(snapshot, evidence, agent, social_influence=social_score)
-        score = weighted_purchase_intent(maut_scores)
+        social_influence_input = clamp(0.5 + trust * 2.0 * (neighbor_avg - 0.5))
+        maut_scores = compute_maut_scores(snapshot, evidence, agent, social_influence=social_influence_input)
+        score = weighted_purchase_intent(maut_scores, weights)
+        score = apply_environment_perturbation(score, agent, env_volatility)
+        # Deterministic agent-level preference noise (simulates unobserved heterogeneity)
+        score = clamp(score + agent_heterogeneity(agent_id))
+        # Direct peer pressure: blend agent's own score toward neighbor consensus.
+        # peer_weight ∈ [0.05, 0.15] depending on trust sensitivity.
+        # (was 0.15–0.40, which collapsed the distribution; gentler blend preserves variation.)
+        peer_weight = 0.05 + trust * 0.10
+        score = clamp(score * (1 - peer_weight) + neighbor_avg * peer_weight)
         previous_score = clamp(safe_float(copied.get("purchase_intent_score"), score))
         change = abs(score - previous_score)
         max_change = max(max_change, change)
@@ -167,14 +201,19 @@ def _propagate_round(
                 "maut_scores": maut_scores,
                 "maut_weighted_score": score,
                 "purchase_intent_score": score,
-                "decision": _decision_label(score),
                 "simulation_round": round_number,
                 "neighbor_purchase_intent_avg": round(neighbor_avg, 4),
                 "social_score_change": round(change, 4),
+                "environment_volatility": env_info,
             }
         )
-        copied["confidence"] = confidence_for_decision(copied, product)
         rows.append(copied)
+    # Compute adaptive thresholds from the round's score distribution
+    all_scores = [safe_float(r.get("purchase_intent_score"), 0.5) for r in rows]
+    low_t, high_t = adaptive_thresholds(all_scores)
+    for row in rows:
+        row["decision"] = _decision_label(safe_float(row.get("purchase_intent_score"), 0.5), low_t, high_t)
+        row["confidence"] = confidence_for_decision(row, product)
     return rows, max_change
 
 
