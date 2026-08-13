@@ -841,7 +841,11 @@ def purchase_intent_distribution_rows(aggregation: dict[str, Any]) -> list[dict[
 def top_factor_rows(aggregation: dict[str, Any], key: str) -> list[dict[str, Any]]:
     rows = aggregation.get(key) if isinstance(aggregation.get(key), list) else []
     return [
-        {"name": str(item.get("item") or "未命名因素"), "count": int(item.get("count") or 0)}
+        {
+            "name": str(item.get("item") or "未命名因素"),
+            "count": int(item.get("count") or 0),
+            "affected_share_pct": safe_float(item.get("affected_share_pct"), 0),
+        }
         for item in rows
         if isinstance(item, dict)
     ]

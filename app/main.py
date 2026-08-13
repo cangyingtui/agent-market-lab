@@ -1309,7 +1309,7 @@ def _aggregation_for_report_repair(
 
 
 def repair_project_report_data(db: Session, project: SimulationProject) -> bool:
-    result_data = _dict_value(project.result_data)
+    result_data = dict(_dict_value(project.result_data))
     if not result_data:
         return False
 

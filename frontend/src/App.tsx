@@ -2147,7 +2147,7 @@ function ProjectsPage({ user, onLogout, onUserChange }: { user: User; onLogout: 
 
   useEffect(() => {
     loadProjects(currentPage, pageSize, statusFilter);
-  }, [currentPage, pageSize, statusFilter]);
+  }, [currentPage, pageSize, statusFilter, user?.id]);
 
   return (
     <AppShell
@@ -6235,7 +6235,41 @@ function CrowdAnalysis({ report }: { report: JsonObject }) {
   const chart = getChartData(report);
   const distribution = chartRows(chart.purchase_intent_distribution);
   const drivers = chartRows(chart.purchase_drivers);
-  const blockers = chartRows(chart.purchase_blockers);
+  const savedBlockers = chartRows(chart.purchase_blockers);
+  const blockerView = useMemo(() => {
+    // Genuine decision blockers (current backend format) carry a numeric
+    // affected_share_pct with real spread. Stale history reports store
+    // {name, count} (no pct) or a back-filled uniform 100% — those fall back
+    // to the preset profile concerns below instead of a misleading share.
+    const hasPct = savedBlockers.length > 0 && savedBlockers.every((b) => typeof b.affected_share_pct === "number" && Number.isFinite(b.affected_share_pct));
+    const allFullShare = savedBlockers.length > 0 && savedBlockers.every((b) => Math.round(numberValue(b.affected_share_pct, 0)) === 100);
+    if (hasPct && !allFullShare) return { rows: savedBlockers, source: "decision" as const };
+    const weights = new Map<string, number>();
+    const totalWeight = agents.reduce((sum, agent) => sum + Math.max(numberValue(agent.sample_weight, 1), 0), 0);
+    agents.forEach((agent) => {
+      const weight = Math.max(numberValue(agent.sample_weight, 1), 0);
+      stringArray(agent.risk_concerns).forEach((concern) => weights.set(concern, (weights.get(concern) || 0) + weight));
+    });
+    if (!weights.size) {
+      profileSegments.forEach((segment) => {
+        const profile = recordValue(segment.profile || segment.crowd_profile);
+        const weight = Math.max(numberValue(segment.ratio, 0), 0);
+        stringArray(profile.risk_concerns).forEach((concern) => weights.set(concern, (weights.get(concern) || 0) + weight));
+      });
+      const rows = Array.from(weights.entries())
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, weight]) => ({ name, affected_share_pct: Math.min(100, weight) }));
+      return { rows, source: rows.length ? "profile" as const : "none" as const };
+    }
+    const rows = Array.from(weights.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([name, weight]) => ({ name, affected_share_pct: totalWeight > 0 ? weight * 100 / totalWeight : 0 }));
+    return { rows, source: rows.length ? "profile" as const : "none" as const };
+  }, [agents, profileSegments, savedBlockers]);
+  const blockerTitle = blockerView.source === "profile" ? "潜在购买顾虑" : "主要购买阻碍";
+  const blockerTooltip = blockerView.source === "decision"
+    ? "根据代表 Agent 的购买决策阻碍标签汇总；覆盖占比按代表权重估算。"
+    : "历史报告未保留购买决策阻碍，本卡片改为汇总客群画像中预设的风险顾虑；它不代表这些顾虑实际导致了未购买。";
   function profileRowsFor(segment: JsonObject) {
     const profile = (segment.profile || segment.crowd_profile || {}) as JsonObject;
     return [
@@ -6324,12 +6358,31 @@ function CrowdAnalysis({ report }: { report: JsonObject }) {
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card className="nested-card" title="主要购买阻碍">
-            <List
-              size="small"
-              dataSource={blockers.length ? blockers.slice(0, 6) : [{ name: "暂无显著阻碍因素", count: 0 }]}
-              renderItem={(item) => <List.Item>{textValue(item.name)}：{textValue(item.count)} 次提及</List.Item>}
-            />
+          <Card
+            className="nested-card"
+            title={<Space size={6}>{blockerTitle}<Tooltip title={blockerTooltip}><InfoCircleOutlined className="neutral-help-icon" /></Tooltip></Space>}
+          >
+            {blockerView.rows.length ? (
+              <>
+                <List
+                  size="small"
+                  dataSource={blockerView.rows.slice(0, 6)}
+                  renderItem={(item) => (
+                    <List.Item>
+                      <Text>{textValue(item.name)}</Text>
+                      {blockerView.source === "decision" && (
+                        <Text strong>{numberValue(item.affected_share_pct, 0).toFixed(1)}%</Text>
+                      )}
+                    </List.Item>
+                  )}
+                />
+                {blockerView.source === "profile" && (
+                  <Alert className="mt-16" type="warning" showIcon message="历史画像口径" description="以上内容来自预设风险顾虑，仅表示潜在关注范围，不表示其实际造成购买流失。" />
+                )}
+              </>
+            ) : (
+              <Alert type="info" showIcon message="历史报告未保留可用于分析购买阻碍的数据" description="不能据此判断消费者没有购买顾虑；如需实际阻碍归因，应使用包含购买决策分项的新报告。" />
+            )}
           </Card>
         </Col>
       </Row>

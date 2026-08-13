@@ -11,6 +11,7 @@ from app.time_utils import utc_now_iso
 from engine.evidence_utils import PRODUCT_EVIDENCE_KEYS, evidence_items
 from engine.maut_model import build_decision_model_summary, enrich_decisions_with_maut, adaptive_thresholds, safe_float
 from engine.report_generator import extract_json_object
+from engine.purchase_blockers import enrich_decision_blockers
 
 
 PROMPT_VERSION = "decision_model_v0.1"
@@ -95,6 +96,7 @@ def fallback_decisions(
             }
         )
     decisions = enrich_decisions_with_maut(snapshot, evidence, agents, decisions)
+    decisions, _ = enrich_decision_blockers(agents, decisions)
     return {
         "prompt_version": PROMPT_VERSION,
         "decisions": decisions,
@@ -287,6 +289,7 @@ def generate_purchase_decisions(
                 copied["llm_reasoning_sampled"] = False
             decisions.append(copied)
         decisions = enrich_decisions_with_maut(snapshot, evidence, agents, decisions)
+        decisions, _ = enrich_decision_blockers(agents, decisions)
         return {
             "prompt_version": PROMPT_VERSION,
             "decisions": decisions,

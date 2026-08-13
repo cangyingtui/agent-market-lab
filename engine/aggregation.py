@@ -260,6 +260,7 @@ def aggregate_results(
     blockers = Counter()
     driver_counts = Counter()
     blocker_counts = Counter()
+    blocker_agent_weight = Counter()
 
     for decision in decisions:
         agent = agent_map.get(decision.get("agent_id"), {})
@@ -279,6 +280,7 @@ def aggregate_results(
         for item in decision.get("blockers") or []:
             blockers[str(item)] += sample_weight
             blocker_counts[str(item)] += 1
+            blocker_agent_weight[str(item)] += sample_weight
     avg_score = weighted_mean(weighted_scores)
     sample_weight_total = sum(weight for _, weight in weighted_scores)
 
@@ -351,7 +353,12 @@ def aggregate_results(
             for item, weight in drivers.most_common(8)
         ],
         "top_purchase_blockers": [
-            {"item": item, "count": blocker_counts[item], "weight": round(weight, 4)}
+            {
+                "item": item,
+                "count": blocker_counts[item],
+                "weight": round(weight, 4),
+                "affected_share_pct": round(blocker_agent_weight[item] * 100 / sample_weight_total, 1) if sample_weight_total else 0.0,
+            }
             for item, weight in blockers.most_common(8)
         ],
         "competitor_advantages": competitor_advantages,

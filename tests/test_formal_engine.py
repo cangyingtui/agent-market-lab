@@ -84,6 +84,23 @@ def test_purchase_decision_fallback_when_llm_key_missing(monkeypatch) -> None:
     assert all("maut_scores" in item for item in result["decisions"])
     assert all(item["confidence"]["level"] in {"high", "medium", "low"} for item in result["decisions"])
     assert "decision_model" in result
+    assert all("价格波动" in item["blockers"] for item in result["decisions"])
+
+
+def test_purchase_blockers_derive_from_maut_and_saved_risk_concerns(monkeypatch) -> None:
+    monkeypatch.setattr("engine.decision_model.settings.llm_api_key", "")
+    agents = generate_agents(sample_snapshot(), sample_evidence(), count=2)["agents"]
+    result = generate_purchase_decisions(sample_snapshot(), sample_evidence(), agents)
+    result["decisions"][0]["maut_scores"]["brand_loyalty"] = 0.30
+    from engine.purchase_blockers import enrich_decision_blockers
+
+    enriched, changed = enrich_decision_blockers(agents, result["decisions"])
+
+    assert changed is True
+    assert "价格波动" in enriched[0]["blockers"]
+    assert "品牌信任或偏好不足" in enriched[0]["blockers"]
+
+
 
 
 def test_aggregation_outputs_metrics() -> None:
