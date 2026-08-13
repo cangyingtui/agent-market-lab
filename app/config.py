@@ -37,6 +37,32 @@ class Settings(BaseSettings):
     heavy_resource_lock_ttl_seconds: int = Field(default=7200, alias="HEAVY_RESOURCE_LOCK_TTL_SECONDS")
     pdf_export_lock_ttl_seconds: int = Field(default=900, alias="PDF_EXPORT_LOCK_TTL_SECONDS")
 
+    custom_competitor_backfill_enabled: bool = Field(default=True, alias="CUSTOM_COMPETITOR_BACKFILL_ENABLED")
+    custom_competitor_brand_similarity_threshold: float = Field(
+        default=0.85,
+        alias="CUSTOM_COMPETITOR_BRAND_SIMILARITY_THRESHOLD",
+    )
+    custom_competitor_price_rel_tolerance: float = Field(
+        default=0.15,
+        alias="CUSTOM_COMPETITOR_PRICE_REL_TOLERANCE",
+    )
+    custom_competitor_price_abs_tolerance_cny: float = Field(
+        default=50.0,
+        alias="CUSTOM_COMPETITOR_PRICE_ABS_TOLERANCE_CNY",
+    )
+    custom_competitor_backfill_stale_seconds: int = Field(
+        default=900,
+        alias="CUSTOM_COMPETITOR_BACKFILL_STALE_SECONDS",
+    )
+    custom_competitor_backfill_max_retries: int = Field(
+        default=3,
+        alias="CUSTOM_COMPETITOR_BACKFILL_MAX_RETRIES",
+    )
+    custom_competitor_backfill_poll_seconds: int = Field(
+        default=60,
+        alias="CUSTOM_COMPETITOR_BACKFILL_POLL_SECONDS",
+    )
+
     jwt_secret_key: str = Field(default="change-me", alias="JWT_SECRET_KEY")
     jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
     access_token_expire_minutes: int = Field(default=1440, alias="ACCESS_TOKEN_EXPIRE_MINUTES")
@@ -68,6 +94,32 @@ class Settings(BaseSettings):
     enrichment_api_base: str = Field(default="https://api.tavily.com/search", alias="ENRICHMENT_API_BASE")
     enrichment_cache_ttl_hours: int = Field(default=72, alias="ENRICHMENT_CACHE_TTL_HOURS")
     enrichment_max_items_per_run: int = Field(default=3, alias="ENRICHMENT_MAX_ITEMS_PER_RUN")
+
+    public_evidence_enabled: bool = Field(default=False, alias="PUBLIC_EVIDENCE_ENABLED")
+    public_evidence_provider: str = Field(default="bailian", alias="PUBLIC_EVIDENCE_PROVIDER")
+    public_evidence_api_key: str = Field(default="", alias="PUBLIC_EVIDENCE_API_KEY")
+    public_evidence_api_base: str = Field(
+        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        alias="PUBLIC_EVIDENCE_API_BASE",
+    )
+    public_evidence_model: str = Field(default="qwen-plus", alias="PUBLIC_EVIDENCE_MODEL")
+    public_evidence_timeout_seconds: int = Field(default=12, alias="PUBLIC_EVIDENCE_TIMEOUT_SECONDS")
+    public_evidence_total_timeout_seconds: int = Field(default=30, alias="PUBLIC_EVIDENCE_TOTAL_TIMEOUT_SECONDS")
+    public_evidence_cache_ttl_hours: int = Field(default=72, alias="PUBLIC_EVIDENCE_CACHE_TTL_HOURS")
+    public_evidence_basic_query_limit: int = Field(default=2, alias="PUBLIC_EVIDENCE_BASIC_QUERY_LIMIT")
+    public_evidence_pro_query_limit: int = Field(default=6, alias="PUBLIC_EVIDENCE_PRO_QUERY_LIMIT")
+
+    price_enrichment_enabled: bool = Field(default=False, alias="PRICE_ENRICHMENT_ENABLED")
+    price_enrichment_write_master: bool = Field(default=False, alias="PRICE_ENRICHMENT_WRITE_MASTER")
+    price_enrichment_api_key: str = Field(default="", alias="PRICE_ENRICHMENT_API_KEY")
+    price_enrichment_api_base: str = Field(
+        default="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        alias="PRICE_ENRICHMENT_API_BASE",
+    )
+    price_enrichment_model: str = Field(default="qwen-plus", alias="PRICE_ENRICHMENT_MODEL")
+    price_enrichment_max_items_per_request: int = Field(default=4, alias="PRICE_ENRICHMENT_MAX_ITEMS_PER_REQUEST")
+    price_enrichment_min_confidence: float = Field(default=0.65, alias="PRICE_ENRICHMENT_MIN_CONFIDENCE")
+    price_enrichment_timeout_seconds: int = Field(default=20, alias="PRICE_ENRICHMENT_TIMEOUT_SECONDS")
 
     enable_distill_check: bool = Field(default=False, alias="ENABLE_DISTILL_CHECK")
     distill_model_path: str = Field(default="knowledge_model/sentiment", alias="DISTILL_MODEL_PATH")

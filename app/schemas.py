@@ -23,6 +23,12 @@ class UpdateUserProfileRequest(BaseModel):
     avatar_url: str | None = Field(default=None, max_length=500)
 
 
+class AvatarUploadRequest(BaseModel):
+    filename: str = Field(min_length=1, max_length=255)
+    content_type: str = Field(min_length=1, max_length=80)
+    data_base64: str = Field(min_length=1)
+
+
 class RagSearchRequest(BaseModel):
     query: str = Field(min_length=1, max_length=1000)
     top_k: int = Field(default=5, ge=1, le=20)
@@ -93,3 +99,8 @@ class DistillDebugRequest(BaseModel):
     threshold: float | None = Field(default=None, ge=0, le=1)
     sample_size: int | None = Field(default=None, ge=1, le=1000)
     validation_batch_id: str | None = Field(default=None, max_length=120)
+
+
+class WhatIfRequest(BaseModel):
+    competitor_count: int | None = Field(default=None, ge=5, le=50)
+    weights: dict[str, float] | None = None

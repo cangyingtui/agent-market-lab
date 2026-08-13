@@ -58,6 +58,90 @@ def infer_category_preference(snippets: list[str], fallback: str) -> str:
     return fallback or "目标品类"
 
 
+def _extract_product_brand(product: dict[str, Any]) -> str:
+    """从产品定义中提取品牌名"""
+    brand = str(product.get("brand") or "").strip()
+    if brand:
+        return brand
+    # 从产品名推断品牌（如"iPhone 15" → "Apple" 无法自动推断，回退为空）
+    return ""
+
+
+def _extract_competitor_brands(market: dict[str, Any]) -> list[str]:
+    """从市场配置的竞品列表中提取品牌名"""
+    brands: list[str] = []
+    competitors = market.get("competitors")
+    if not isinstance(competitors, list):
+        return brands
+    for item in competitors:
+        if not isinstance(item, dict):
+            continue
+        # 优先取 brand 字段
+        brand = str(item.get("brand") or "").strip()
+        if brand:
+            brands.append(brand)
+            continue
+        # 没有 brand 字段时，用 product_name 作为品牌代理
+        name = str(item.get("product_name") or item.get("name") or "").strip()
+        if name:
+            brands.append(name)
+    return brands
+
+
+def _infer_preferred_brands(
+    product_brand: str,
+    competitor_brands: list[str],
+    decision_style: str,
+    local_index: int,
+    price_sensitivity: str,
+) -> list[str]:
+    """根据决策风格和价格敏感度推导 agent 的品牌偏好。
+
+    数学逻辑：消费者离散选择模型中，品牌偏好是二元哑变量。
+    - 品牌信任型消费者更可能偏好特定品牌
+    - 价格敏感型消费者更少关注品牌，偏好列表更短
+    - 不同 agent 偏好不同品牌组合，模拟真实市场品牌分布
+    """
+    all_brands = list(dict.fromkeys(
+        ([product_brand] if product_brand else [])
+        + competitor_brands
+    ))
+    if not all_brands:
+        return []
+
+    style = str(decision_style or "")
+    sensitivity = str(price_sensitivity or "medium")
+
+    # 品牌信任型：偏好 1-2 个品牌，其中大概率包含产品品牌
+    if "品牌" in style:
+        if product_brand and local_index % 3 != 0:
+            return [product_brand]
+        # 部分品牌信任型消费者偏好竞品品牌
+        alt = [b for b in all_brands if b != product_brand]
+        if alt:
+            idx = local_index % len(alt)
+            return [alt[idx]]
+        return [product_brand] if product_brand else []
+
+    # 价格敏感型：约 40% 有品牌偏好（从 ~25% 提升）
+    if sensitivity == "high":
+        if local_index % 5 < 2:
+            return [product_brand] if product_brand else (competitor_brands[:1] if competitor_brands else [])
+        return []
+
+    # 理性比较型 / 参数敏感型：约 40% 有品牌偏好（从 ~20% 提升）
+    if local_index % 5 < 2:
+        return [product_brand] if product_brand else (competitor_brands[:1] if competitor_brands else [])
+    if local_index % 7 == 1 and competitor_brands:
+        idx = local_index % len(competitor_brands)
+        return [competitor_brands[idx]]
+
+    # 其余 fallback：仍有 ~30% 概率分配品牌
+    if local_index % 3 == 0:
+        return [product_brand] if product_brand else (competitor_brands[:1] if competitor_brands else [])
+    return []
+
+
 def allocate_segment_agent_counts(segments: list[dict[str, Any]], count: int) -> list[int]:
     if not segments:
         return []
@@ -98,6 +182,8 @@ def generate_agents(
             }
         ]
     category = product.get("subcategory") or product.get("category") or "目标品类"
+    product_brand = _extract_product_brand(product)
+    competitor_brands = _extract_competitor_brands(market)
     user_items = evidence_items(evidence, *USER_EVIDENCE_KEYS, *MARKET_EVIDENCE_KEYS)
     common_snippets = [str(item.get("snippet") or "") for item in user_items]
     profile_text = crowd_profile_text(market)
@@ -128,6 +214,7 @@ def generate_agents(
             price_sensitivity = infer_price_sensitivity(snippets, local_index, profile.get("price_sensitivity"))
             offset = local_index % len(feature_preferences)
             preferred_features = feature_preferences[offset:] + feature_preferences[:offset]
+            decision_style = ["理性比较型", "参数敏感型", "价格敏感型", "品牌信任型", "功能优先型", "综合权衡型"][local_index % 6]
             agents.append(
                 {
                     "agent_id": f"agent_{agent_index:03d}",
@@ -141,10 +228,13 @@ def generate_agents(
                     "category_preference": category_preference if local_index % 4 else category,
                     "price_sensitivity": price_sensitivity,
                     "preferred_features": preferred_features[:3],
+                    "preferred_brands": _infer_preferred_brands(
+                        product_brand, competitor_brands, decision_style, local_index, price_sensitivity
+                    ),
                     "channel_preferences": profile.get("channel_preferences") or [],
                     "purchase_motivations": profile.get("purchase_motivations") or [],
                     "risk_concerns": profile.get("risk_concerns") or [],
-                    "decision_style": ["理性比较型", "参数敏感型", "价格敏感型", "品牌信任型"][local_index % 4],
+                    "decision_style": decision_style,
                     "budget_band": product.get("price_cny") or "待确认",
                     "evidence_refs": [
                         item.get("source")

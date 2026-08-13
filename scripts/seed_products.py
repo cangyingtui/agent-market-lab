@@ -85,6 +85,9 @@ def main() -> int:
                     if not line.strip():
                         continue
                     item = json.loads(line)
+                    if item.get("_migration_deleted"):
+                        skipped += 1
+                        continue
                     exists = db.scalar(
                         select(Product).where(
                             Product.source_file == file_name,
@@ -98,6 +101,8 @@ def main() -> int:
                     specs = item.get("specifications") or {}
                     if not isinstance(specs, dict):
                         specs = {}
+                    if isinstance(item.get("_price_enrichment"), dict):
+                        specs = {**specs, "_price_enrichment": item["_price_enrichment"]}
                     category = best_category(set(specs.keys()), categories)
                     price = item.get("price_cny")
                     db.add(
@@ -114,7 +119,7 @@ def main() -> int:
                             source_row=row_number,
                             collection_time=parse_datetime(item.get("_collection_time")),
                             quality_status=quality_status(item),
-                            is_active=quality_status(item) != "invalid",
+                            is_active=quality_status(item) == "complete",
                         )
                     )
                     created += 1

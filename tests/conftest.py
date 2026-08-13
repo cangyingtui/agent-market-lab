@@ -11,6 +11,7 @@ from app.config import settings
 from app.database import SessionLocal
 from app.main import app
 from app.models import (
+    CustomCompetitorBackfillJob,
     DistillCheckLog,
     ExportTask,
     QuotaLog,
@@ -69,6 +70,7 @@ def cleanup_test_users() -> None:
             client.delete(export_progress_key(export_id))
 
         if project_ids:
+            db.execute(delete(CustomCompetitorBackfillJob).where(CustomCompetitorBackfillJob.project_id.in_(project_ids)))
             for model in (ExportTask, ShareToken, QuotaLog, DistillCheckLog, RagTraceLog, SimulationTaskLog):
                 db.execute(delete(model).where(model.project_id.in_(project_ids)))
             db.execute(delete(SimulationProject).where(SimulationProject.id.in_(project_ids)))

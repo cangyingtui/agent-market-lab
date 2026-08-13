@@ -647,6 +647,53 @@ deploy/nginx/agentsim.conf
 
 ## 15. 后续优化方向
 
+### 市场可信度扩展
+
+- 报告同时输出“仿真环境份额”、5～50 个竞品的情景换算份额和 RCI；情景换算不是销量预测。
+- Step2 可选择默认、抖音、天猫、线下高端或自定义五维权重；正式权重冻结进快照。
+- 报告提供渠道 what-if、价格数据缺口、营销漏斗桑基图和舆情演化。
+- `POST /api/simulations/{id}/what-if` 只做确定性重算，不修改项目或重新调用模型。
+
+新仿真使用 `commercial_differentiation_v1`：策略 ROI、渠道贡献和参数影响由场景、人群、渠道先验、购买驱动与可选成本输入确定性计算，不使用随机扰动强行拉开结果。策略详情可选填基础毛利率、让利比例、单笔推广成本和总预算；未填写时使用专家规则与场景匹配，只有现有成本数据能够证明亏损时才输出具体成本风险。历史冻结报告保持原算法，复制项目并重新运行后使用新版本。
+
+### 产品价格正式迁移
+
+2026-07-28 审核批次包含 366 条价格更新和 3 条无效记录删除。全新或已有数据库统一执行：
+
+```bash
+python scripts/migrate_product_prices_20260728.py --apply-db --verify
+```
+
+迁移按 `source_file + source_row` 匹配并校验品牌/SKU，不依赖跨环境自增 ID。生产 Compose 会通过 `data-init` 按建表、种子、迁移、完整性检查的顺序自动执行。
+
+2 GB 单机部署默认关闭本地蒸馏模型；核心后端镜像不包含 Chromium、情感模型和 FAISS 备份，PDF 浏览器只存在于 export 镜像。
+
+### 产品Excel与专用测试账号
+
+- `scripts/create_batch_test_user.py` 由管理员幂等创建公开演示Pro测试账号 `123@test`；约定初始密码为 `123456`，创建和登录时仍通过环境变量注入。
+- `scripts/batch_product_simulations.py` 支持 `template`、`sample`、`validate`、`compile`、`login-check`、`run`、`resume` 和安全 `cleanup`。
+- 批量脚本只在本地运行，通过正式 API 串行提交；启动前强制校验登录用户名、用户ID和Pro状态，项目创建后再次核验归属，不调用注册、升级、PDF或分享接口。
+- 非本地 HTTP 默认禁止；只有显式设置 `AGENTSIM_ALLOW_INSECURE_HTTP=true` 才允许连接当前测试站点，正式环境应使用 HTTPS。
+- Excel采用测试任务、产品主表、参数明细、证据来源和任务级自由运行配置；模拟资料统一标记为 `synthetic`。`07_校验结果` 只输出关键输入的目标/竞品对照与输入拟合度，格式错误单列于 `08_输入检查`。
+- 服务端项目和完整结果保存在专用测试账号；本地批次状态和JSON报告写入 `batch_runs/`，该目录不进入 Git。测试结束后只能通过批次编号确认删除本账号下带测试前缀且已停止的项目。
+
+### 自定义竞品低优先级复用
+
+- 新仿真运行入队后，系统会为冻结快照中的自定义竞品创建幂等回填待办，不影响主仿真提交结果。
+- Monitor 默认每 60 秒检查一次；只有在专业版、普通版、兼容和导出队列均为空，且没有仿真运行锁或重资源锁时，才处理一条待办。该流程只查询和写入 MySQL，不调用 RAG、LLM、FAISS 或 PDF；`monitor.py --once` 不执行自定义竞品回填。
+- 高度相似判断要求大类和小类一致、品牌相似度达到阈值，并且价格落在配置容差内；命中时复用库内产品，未命中时才新增产品。
+- 缺少产品名、品牌、品类或有效价格，品类不在平台字典中，或人工复核状态为 `rejected` 的自定义竞品不会自动入库，原因会记录在待办结果中。
+- 已处理项目按 `project_id + snapshot_hash` 幂等，不会因重复运行产生重复待办。删除尚未处理的测试项目时，会同步删除其回填待办；已经成功沉淀的产品保留供后续复用。
+
+历史项目先预览、再按账号入队：
+
+```bash
+python scripts/enqueue_historical_custom_competitors.py --username "123@test"
+python scripts/enqueue_historical_custom_competitors.py --username "123@test" --apply
+```
+
+`--apply` 只创建持久化待办，实际回填仍由 Monitor 在系统空闲时逐条完成。
+
 - 拆分 `app/models.py`、`app/schemas.py` 为更细粒度模块；
 - 将 `frontend/src/api.ts` 拆分为 auth、simulation、market、report 等 API 文件；
 - 引入 Alembic，替代当前 `create_all` + `scripts/migrate_v24_indexes.py` 的轻量迁移方式；

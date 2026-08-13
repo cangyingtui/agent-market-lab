@@ -1,0 +1,360 @@
+{
+  "version": "2026-05-28-p1",
+  "description": "UI schema overrides for product field templates. Keys use the current backend category/subcategory/field_name values.",
+  "default_hint": "滑块范围为常见规格建议值，特殊产品可直接输入超出范围的数值；保存后会作为用户自定义配置参与仿真。",
+  "rules": [
+    {
+      "category": "消费电子",
+      "subcategory": "智能手机",
+      "fields": {
+        "display": { "label": "屏幕尺寸", "controlType": "continuousSlider", "min": 5.4, "max": 7.0, "step": 0.1, "defaultValue": 6.5, "unit": "英寸", "defaultWeight": 4 },
+        "battery": { "label": "电池容量", "controlType": "continuousSlider", "min": 3000, "max": 6000, "step": 50, "defaultValue": 4500, "unit": "mAh", "defaultWeight": 5 },
+        "camera": { "label": "摄像头像素", "controlType": "continuousSlider", "min": 12, "max": 200, "step": 1, "defaultValue": 50, "unit": "MP", "defaultWeight": 4 },
+        "storage": { "label": "存储容量", "controlType": "multiSelect", "options": ["128GB", "256GB", "512GB", "1TB"], "defaultValue": ["256GB"], "defaultWeight": 4 },
+        "processor": { "label": "处理器", "controlType": "discreteSelect", "options": ["旗舰", "中高端", "中端"], "defaultValue": "中高端", "defaultWeight": 5 },
+        "charging_power": { "label": "快充功率", "controlType": "continuousSlider", "min": 20, "max": 150, "step": 1, "defaultValue": 67, "unit": "W", "defaultWeight": 4 },
+        "ram": { "label": "运行内存", "controlType": "continuousSlider", "min": 4, "max": 24, "step": 1, "defaultValue": 8, "unit": "GB", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "平板电脑",
+      "fields": {
+        "display": { "label": "屏幕尺寸", "controlType": "continuousSlider", "min": 7.9, "max": 13, "step": 0.1, "defaultValue": 11, "unit": "英寸", "defaultWeight": 5 },
+        "battery_life": { "label": "电池续航", "controlType": "continuousSlider", "min": 8, "max": 20, "step": 0.5, "defaultValue": 12, "unit": "小时", "defaultWeight": 5 },
+        "storage": { "label": "存储容量", "controlType": "multiSelect", "options": ["64GB", "128GB", "256GB", "512GB"], "defaultValue": ["256GB"], "defaultWeight": 3 },
+        "stylus_support": { "label": "手写笔支持", "controlType": "switch", "options": ["支持", "不支持"], "defaultValue": "支持", "defaultWeight": 4 },
+        "ram": { "label": "运行内存", "controlType": "continuousSlider", "min": 4, "max": 16, "step": 1, "defaultValue": 8, "unit": "GB", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "笔记本电脑",
+      "fields": {
+        "display": { "label": "屏幕尺寸", "controlType": "continuousSlider", "min": 13.3, "max": 17, "step": 0.1, "defaultValue": 15.6, "unit": "英寸", "defaultWeight": 4 },
+        "processor": { "label": "处理器", "controlType": "discreteSelect", "options": ["i5", "i7", "i9", "R5", "R7", "R9"], "defaultValue": "i7", "defaultWeight": 5 },
+        "ram": { "label": "内存", "controlType": "continuousSlider", "min": 8, "max": 64, "step": 8, "defaultValue": 16, "unit": "GB", "defaultWeight": 5 },
+        "storage": { "label": "存储", "controlType": "continuousSlider", "min": 256, "max": 2048, "step": 256, "defaultValue": 512, "unit": "GB", "defaultWeight": 4 },
+        "gpu": { "label": "显卡", "controlType": "discreteSelect", "options": ["集成", "入门独显", "中端独显", "高端独显"], "defaultValue": "中端独显", "defaultWeight": 4 },
+        "weight": { "label": "重量", "controlType": "continuousSlider", "min": 0.9, "max": 2.5, "step": 0.1, "defaultValue": 1.5, "unit": "kg", "defaultWeight": 4 },
+        "battery_life": { "label": "续航", "controlType": "continuousSlider", "min": 6, "max": 20, "step": 0.5, "defaultValue": 10, "unit": "小时", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "智能手表/手环",
+      "fields": {
+        "screen": { "label": "屏幕尺寸", "controlType": "continuousSlider", "min": 1.2, "max": 2.0, "step": 0.1, "defaultValue": 1.5, "unit": "英寸", "defaultWeight": 4 },
+        "battery_life": { "label": "续航时间", "controlType": "continuousSlider", "min": 1, "max": 30, "step": 1, "defaultValue": 14, "unit": "天", "defaultWeight": 5 },
+        "waterproof_rating": { "label": "防水等级", "controlType": "steppedSlider", "options": [1, 2, 3, 4, 5], "defaultValue": 4, "unit": "级", "defaultWeight": 4 },
+        "health_monitoring": { "label": "健康监测", "controlType": "multiSelect", "options": ["心率", "血氧", "睡眠", "压力", "ECG"], "defaultValue": ["心率", "血氧", "睡眠"], "defaultWeight": 5 },
+        "gps": { "label": "GPS定位", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 },
+        "sports_modes": { "label": "运动模式", "controlType": "continuousSlider", "min": 10, "max": 150, "step": 5, "defaultValue": 50, "unit": "种", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "真无线耳机",
+      "fields": {
+        "battery_life": { "label": "续航（含充电盒）", "controlType": "continuousSlider", "min": 15, "max": 60, "step": 1, "defaultValue": 30, "unit": "小时", "defaultWeight": 5 },
+        "noise_cancellation": { "label": "降噪类型", "controlType": "discreteSelect", "options": ["无降噪", "被动降噪", "主动降噪"], "defaultValue": "主动降噪", "defaultWeight": 5 },
+        "bluetooth_version": { "label": "连接方式", "controlType": "discreteSelect", "options": ["蓝牙5.0", "蓝牙5.3"], "defaultValue": "蓝牙5.3", "defaultWeight": 3 },
+        "waterproof": { "label": "防水等级", "controlType": "discreteSelect", "options": ["IPX4", "IPX5", "IPX7"], "defaultValue": "IPX5", "defaultWeight": 3 },
+        "fit_type": { "label": "佩戴方式", "controlType": "discreteSelect", "options": ["入耳式", "半入耳", "头戴式"], "defaultValue": "入耳式", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "相机（含无人机）",
+      "fields": {
+        "effective_pixels": { "label": "像素", "controlType": "continuousSlider", "min": 20, "max": 61, "step": 1, "defaultValue": 33, "unit": "MP", "defaultWeight": 4 },
+        "sensor_size": { "label": "传感器类型", "controlType": "discreteSelect", "options": ["APS-C", "全画幅", "中画幅"], "defaultValue": "全画幅", "defaultWeight": 5 },
+        "image_stabilization": { "label": "防抖类型", "controlType": "discreteSelect", "options": ["无机身防抖", "机身防抖", "镜头防抖"], "defaultValue": "机身防抖", "defaultWeight": 4 },
+        "video_max": { "label": "视频拍摄", "controlType": "discreteSelect", "options": ["1080P", "4K 30fps", "4K 60fps", "8K"], "defaultValue": "4K 60fps", "defaultWeight": 4 },
+        "weight": { "label": "重量", "controlType": "continuousSlider", "min": 150, "max": 1000, "step": 10, "defaultValue": 500, "unit": "g", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "游戏机",
+      "fields": {
+        "storage": { "label": "存储容量", "controlType": "continuousSlider", "min": 256, "max": 2048, "step": 256, "defaultValue": 1024, "unit": "GB", "defaultWeight": 4 },
+        "max_resolution": { "label": "画质输出", "controlType": "discreteSelect", "options": ["1080P", "2K", "4K", "8K"], "defaultValue": "4K", "defaultWeight": 5 },
+        "controllers_included": { "label": "手柄数量", "controlType": "continuousSlider", "min": 1, "max": 4, "step": 1, "defaultValue": 2, "unit": "个", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "空调",
+      "fields": {
+        "horsepower": { "label": "制冷功率", "controlType": "discreteSelect", "options": ["1匹", "1.5匹", "2匹", "3匹"], "defaultValue": "1.5匹", "defaultWeight": 5 },
+        "energy_efficiency": { "label": "能效等级", "controlType": "discreteSelect", "options": ["一级", "二级", "三级"], "defaultValue": "一级", "defaultWeight": 5 },
+        "inverter": { "label": "变频类型", "controlType": "discreteSelect", "options": ["定频", "变频", "全直流变频"], "defaultValue": "全直流变频", "defaultWeight": 5 },
+        "noise_indoor_outdoor": { "label": "噪音", "controlType": "continuousSlider", "min": 18, "max": 42, "step": 1, "defaultValue": 24, "unit": "dB", "defaultWeight": 4 },
+        "cooling_power": { "label": "制冷功率", "controlType": "continuousSlider", "min": 800, "max": 5000, "step": 100, "defaultValue": 2600, "unit": "W", "defaultWeight": 4 },
+        "air_flow": { "label": "制冷面积", "controlType": "continuousSlider", "min": 10, "max": 60, "step": 1, "defaultValue": 25, "unit": "㎡", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "冰箱",
+      "fields": {
+        "total_volume": { "label": "容量", "controlType": "continuousSlider", "min": 100, "max": 800, "step": 10, "defaultValue": 450, "unit": "L", "defaultWeight": 5 },
+        "energy_efficiency": { "label": "能效等级", "controlType": "discreteSelect", "options": ["一级", "二级", "三级"], "defaultValue": "一级", "defaultWeight": 5 },
+        "cooling_method": { "label": "制冷方式", "controlType": "discreteSelect", "options": ["直冷", "风冷", "风直冷混合"], "defaultValue": "风冷", "defaultWeight": 5 },
+        "inverter": { "label": "压缩机", "controlType": "discreteSelect", "options": ["定频", "变频"], "defaultValue": "变频", "defaultWeight": 4 },
+        "noise": { "label": "噪音", "controlType": "continuousSlider", "min": 32, "max": 48, "step": 1, "defaultValue": 38, "unit": "dB", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "扫地机器人",
+      "fields": {
+        "suction_power": { "label": "吸力", "controlType": "continuousSlider", "min": 2000, "max": 8000, "step": 100, "defaultValue": 5000, "unit": "Pa", "defaultWeight": 5 },
+        "navigation_tech": { "label": "导航方式", "controlType": "discreteSelect", "options": ["陀螺仪", "视觉", "激光"], "defaultValue": "激光", "defaultWeight": 5 },
+        "obstacle_avoidance": { "label": "避障能力", "controlType": "discreteSelect", "options": ["机械", "红外", "3D结构光"], "defaultValue": "3D结构光", "defaultWeight": 5 },
+        "water_tank_capacity": { "label": "水箱容量", "controlType": "continuousSlider", "min": 150, "max": 400, "step": 10, "defaultValue": 250, "unit": "ml", "defaultWeight": 3 },
+        "battery_life": { "label": "续航", "controlType": "continuousSlider", "min": 60, "max": 180, "step": 10, "defaultValue": 120, "unit": "分钟", "defaultWeight": 4 },
+        "self_cleaning": { "label": "地毯识别/自清洁", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "空气净化器",
+      "fields": {
+        "cadr_particulate": { "label": "CADR值", "controlType": "continuousSlider", "min": 200, "max": 800, "step": 10, "defaultValue": 500, "unit": "m³/h", "defaultWeight": 5 },
+        "cadr_formaldehyde": { "label": "甲醛CADR", "controlType": "continuousSlider", "min": 100, "max": 500, "step": 10, "defaultValue": 250, "unit": "m³/h", "defaultWeight": 4 },
+        "ccm_level": { "label": "颗粒物CCM", "controlType": "discreteSelect", "options": ["P1", "P2", "P3", "P4"], "defaultValue": "P4", "defaultWeight": 4 },
+        "noise": { "label": "噪音", "controlType": "continuousSlider", "min": 32, "max": 66, "step": 1, "defaultValue": 35, "unit": "dB", "defaultWeight": 4 },
+        "filter_type": { "label": "净化方式", "controlType": "multiSelect", "options": ["HEPA", "活性炭", "负离子", "紫外"], "defaultValue": ["HEPA", "活性炭"], "defaultWeight": 4 },
+        "smart_features": { "label": "联网控制", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "洗衣机/烘干机",
+      "fields": {
+        "wash_capacity": { "label": "容量", "controlType": "discreteSelect", "options": ["8kg", "10kg", "12kg"], "defaultValue": "10kg", "defaultWeight": 5 },
+        "energy_efficiency": { "label": "能效等级", "controlType": "discreteSelect", "options": ["一级", "二级", "三级"], "defaultValue": "一级", "defaultWeight": 5 },
+        "motor_type": { "label": "电机类型", "controlType": "discreteSelect", "options": ["皮带", "DD直驱"], "defaultValue": "DD直驱", "defaultWeight": 5 },
+        "noise_wash_spin": { "label": "噪音", "controlType": "continuousSlider", "min": 48, "max": 62, "step": 1, "defaultValue": 52, "unit": "dB", "defaultWeight": 3 },
+        "features": { "label": "智能投放", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "微波炉/烤箱/蒸烤箱",
+      "fields": {
+        "capacity": { "label": "容量", "controlType": "continuousSlider", "min": 17, "max": 32, "step": 1, "defaultValue": 23, "unit": "L", "defaultWeight": 4 },
+        "power": { "label": "功率", "controlType": "continuousSlider", "min": 700, "max": 1000, "step": 10, "defaultValue": 800, "unit": "W", "defaultWeight": 4 },
+        "control_type": { "label": "操控方式", "controlType": "discreteSelect", "options": ["旋钮", "按键", "触屏"], "defaultValue": "触屏", "defaultWeight": 3 },
+        "special_functions": { "label": "烧烤/蒸汽功能", "controlType": "multiSelect", "options": ["烧烤", "蒸汽", "变频", "预约"], "defaultValue": ["烧烤"], "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "电饭煲/压力锅",
+      "fields": {
+        "capacity": { "label": "容量", "controlType": "discreteSelect", "options": ["2L", "3L", "4L", "5L"], "defaultValue": "4L", "defaultWeight": 5 },
+        "heating_tech": { "label": "加热方式", "controlType": "discreteSelect", "options": ["底盘加热", "IH电磁加热"], "defaultValue": "IH电磁加热", "defaultWeight": 5 },
+        "inner_pot_material": { "label": "内胆材质", "controlType": "discreteSelect", "options": ["铝合金", "不锈钢", "陶瓷", "铁釜"], "defaultValue": "铁釜", "defaultWeight": 5 },
+        "preset_programs": { "label": "多功能菜单", "controlType": "continuousSlider", "min": 5, "max": 24, "step": 1, "defaultValue": 12, "unit": "种", "defaultWeight": 3 },
+        "power": { "label": "功率", "controlType": "continuousSlider", "min": 400, "max": 1600, "step": 50, "defaultValue": 900, "unit": "W", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能音箱",
+      "fields": {
+        "speaker_power": { "label": "扬声器功率", "controlType": "continuousSlider", "min": 5, "max": 50, "step": 1, "defaultValue": 20, "unit": "W", "defaultWeight": 4 },
+        "voice_assistant": { "label": "语音助手", "controlType": "discreteSelect", "options": ["小爱", "小度", "天猫精灵", "其他"], "defaultValue": "小爱", "defaultWeight": 5 },
+        "smart_hub": { "label": "智能家居控制", "controlType": "switch", "options": ["支持", "不支持"], "defaultValue": "支持", "defaultWeight": 5 },
+        "connectivity": { "label": "连接方式", "controlType": "multiSelect", "options": ["Wi-Fi", "蓝牙", "AUX"], "defaultValue": ["Wi-Fi", "蓝牙"], "defaultWeight": 3 },
+        "microphones": { "label": "麦克风数量", "controlType": "continuousSlider", "min": 2, "max": 7, "step": 1, "defaultValue": 4, "unit": "个", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能门锁",
+      "fields": {
+        "unlock_methods": { "label": "开锁方式", "controlType": "multiSelect", "options": ["指纹", "密码", "卡片", "钥匙", "人脸", "手机"], "defaultValue": ["指纹", "密码", "钥匙", "手机"], "defaultWeight": 5 },
+        "security_level": { "label": "安全等级", "controlType": "discreteSelect", "options": ["B级", "C级", "C+级"], "defaultValue": "C级", "defaultWeight": 5 },
+        "connectivity": { "label": "联网方式", "controlType": "discreteSelect", "options": ["无", "Wi-Fi", "蓝牙", "Zigbee"], "defaultValue": "Wi-Fi", "defaultWeight": 4 },
+        "battery_life": { "label": "电池续航", "controlType": "continuousSlider", "min": 6, "max": 18, "step": 1, "defaultValue": 12, "unit": "个月", "defaultWeight": 4 },
+        "features": { "label": "防撬报警/猫眼功能", "controlType": "multiSelect", "options": ["猫眼功能", "防撬报警", "天地钩", "远程临时密码"], "defaultValue": ["猫眼功能", "防撬报警"], "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能插座/开关",
+      "fields": {
+        "max_power": { "label": "最大功率", "controlType": "continuousSlider", "min": 2000, "max": 4000, "step": 100, "defaultValue": 2500, "unit": "W", "defaultWeight": 5 },
+        "connectivity": { "label": "联网方式", "controlType": "discreteSelect", "options": ["Wi-Fi", "蓝牙", "Zigbee"], "defaultValue": "Wi-Fi", "defaultWeight": 4 },
+        "metering": { "label": "电量统计", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 },
+        "local_timer": { "label": "定时开关", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 5 },
+        "voice_control": { "label": "语音控制", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能摄像头（室内/室外）",
+      "fields": {
+        "resolution": { "label": "分辨率", "controlType": "discreteSelect", "options": ["1080P", "2K", "4K"], "defaultValue": "2K", "defaultWeight": 5 },
+        "night_vision": { "label": "夜视类型", "controlType": "discreteSelect", "options": ["红外", "全彩", "红外+全彩"], "defaultValue": "红外+全彩", "defaultWeight": 5 },
+        "pan_tilt": { "label": "云台旋转", "controlType": "discreteSelect", "options": ["固定", "水平", "水平+垂直"], "defaultValue": "水平+垂直", "defaultWeight": 4 },
+        "storage_method": { "label": "存储方式", "controlType": "multiSelect", "options": ["本地存储", "云存储", "NVR"], "defaultValue": ["本地存储", "云存储"], "defaultWeight": 4 },
+        "ai_detection": { "label": "AI检测", "controlType": "multiSelect", "options": ["人形", "移动", "声音", "宠物"], "defaultValue": ["人形", "移动"], "defaultWeight": 5 },
+        "fov": { "label": "广角范围", "controlType": "continuousSlider", "min": 90, "max": 180, "step": 5, "defaultValue": 120, "unit": "度", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能窗帘电机",
+      "fields": {
+        "motor_type": { "label": "电机类型", "controlType": "discreteSelect", "options": ["交流", "直流"], "defaultValue": "直流", "defaultWeight": 4 },
+        "noise_level": { "label": "运行噪音", "controlType": "continuousSlider", "min": 25, "max": 45, "step": 1, "defaultValue": 30, "unit": "dB", "defaultWeight": 4 },
+        "max_load": { "label": "承重", "controlType": "continuousSlider", "min": 30, "max": 80, "step": 5, "defaultValue": 50, "unit": "kg", "defaultWeight": 5 },
+        "connectivity": { "label": "控制方式", "controlType": "multiSelect", "options": ["遥控", "手机", "语音", "定时"], "defaultValue": ["手机", "语音", "定时"], "defaultWeight": 5 },
+        "torque": { "label": "扭矩", "controlType": "continuousSlider", "min": 0.8, "max": 3, "step": 0.1, "defaultValue": 1.5, "unit": "N·m", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "电动牙刷",
+      "fields": {
+        "vibration_frequency": { "label": "震动频率", "controlType": "continuousSlider", "min": 20000, "max": 42000, "step": 500, "defaultValue": 31000, "unit": "次/分", "defaultWeight": 5 },
+        "cleaning_modes": { "label": "清洁模式", "controlType": "continuousSlider", "min": 3, "max": 8, "step": 1, "defaultValue": 5, "unit": "种", "defaultWeight": 4 },
+        "brush_head_type": { "label": "刷头类型", "controlType": "discreteSelect", "options": ["杜邦", "竹炭", "硅胶"], "defaultValue": "杜邦", "defaultWeight": 4 },
+        "waterproof_rating": { "label": "防水等级", "controlType": "discreteSelect", "options": ["IPX5", "IPX7", "IPX8"], "defaultValue": "IPX7", "defaultWeight": 5 },
+        "battery_life": { "label": "续航", "controlType": "continuousSlider", "min": 7, "max": 90, "step": 1, "defaultValue": 30, "unit": "天", "defaultWeight": 4 },
+        "pressure_sensor": { "label": "压力感应", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "冲牙器",
+      "fields": {
+        "water_tank_capacity": { "label": "水箱容量", "controlType": "continuousSlider", "min": 150, "max": 350, "step": 10, "defaultValue": 250, "unit": "ml", "defaultWeight": 4 },
+        "pulse_frequency": { "label": "脉冲频率", "controlType": "continuousSlider", "min": 1200, "max": 1800, "step": 50, "defaultValue": 1400, "unit": "次/分", "defaultWeight": 4 },
+        "jet_modes": { "label": "模式数量", "controlType": "continuousSlider", "min": 3, "max": 10, "step": 1, "defaultValue": 5, "unit": "档", "defaultWeight": 5 },
+        "nozzles": { "label": "喷嘴数量", "controlType": "continuousSlider", "min": 2, "max": 8, "step": 1, "defaultValue": 5, "unit": "个", "defaultWeight": 4 },
+        "portable": { "label": "便携性", "controlType": "discreteSelect", "options": ["家用", "便携", "两用"], "defaultValue": "两用", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "筋膜枪",
+      "fields": {
+        "stall_force": { "label": "推力", "controlType": "continuousSlider", "min": 8, "max": 25, "step": 1, "defaultValue": 16, "unit": "kg", "defaultWeight": 5 },
+        "speed_levels": { "label": "档位", "controlType": "continuousSlider", "min": 3, "max": 20, "step": 1, "defaultValue": 6, "unit": "档", "defaultWeight": 4 },
+        "battery_life": { "label": "续航", "controlType": "continuousSlider", "min": 1, "max": 8, "step": 0.5, "defaultValue": 4, "unit": "小时", "defaultWeight": 4 },
+        "noise_level": { "label": "噪音", "controlType": "continuousSlider", "min": 35, "max": 55, "step": 1, "defaultValue": 42, "unit": "dB", "defaultWeight": 4 },
+        "attachments": { "label": "按摩头数量", "controlType": "continuousSlider", "min": 4, "max": 8, "step": 1, "defaultValue": 6, "unit": "个", "defaultWeight": 4 },
+        "weight": { "label": "重量", "controlType": "continuousSlider", "min": 0.6, "max": 1.5, "step": 0.05, "defaultValue": 0.8, "unit": "kg", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "婴儿推车",
+      "fields": {
+        "weight": { "label": "重量", "controlType": "continuousSlider", "min": 5, "max": 15, "step": 0.5, "defaultValue": 8, "unit": "kg", "defaultWeight": 5 },
+        "fold_method": { "label": "折叠方式", "controlType": "discreteSelect", "options": ["手动", "一键折叠"], "defaultValue": "一键折叠", "defaultWeight": 5 },
+        "age_weight": { "label": "适用月龄", "controlType": "discreteSelect", "options": ["0-36个月", "6-36个月"], "defaultValue": "0-36个月", "defaultWeight": 5 },
+        "suspension": { "label": "减震类型", "controlType": "discreteSelect", "options": ["弹簧", "液压", "四轮独立"], "defaultValue": "四轮独立", "defaultWeight": 4 },
+        "seat_reversible": { "label": "座椅换向", "controlType": "discreteSelect", "options": ["无", "手动", "单手旋转"], "defaultValue": "单手旋转", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "吸奶器",
+      "fields": {
+        "suction_levels": { "label": "吸力档位", "controlType": "continuousSlider", "min": 5, "max": 15, "step": 1, "defaultValue": 9, "unit": "档", "defaultWeight": 5 },
+        "modes": { "label": "模式", "controlType": "discreteSelect", "options": ["单模式", "双模式", "变频"], "defaultValue": "变频", "defaultWeight": 5 },
+        "noise": { "label": "噪音", "controlType": "continuousSlider", "min": 35, "max": 50, "step": 1, "defaultValue": 40, "unit": "dB", "defaultWeight": 4 },
+        "battery_life": { "label": "电池容量", "controlType": "continuousSlider", "min": 800, "max": 2500, "step": 100, "defaultValue": 1500, "unit": "mAh", "defaultWeight": 4 },
+        "material": { "label": "材质", "controlType": "discreteSelect", "options": ["PP", "硅胶", "PPSU"], "defaultValue": "PPSU", "defaultWeight": 5 }
+      }
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "户外电源/移动电源",
+      "fields": {
+        "capacity": { "label": "容量", "controlType": "continuousSlider", "min": 5000, "max": 40000, "step": 500, "defaultValue": 20000, "unit": "mAh", "defaultWeight": 5 },
+        "output_power": { "label": "输出功率", "controlType": "continuousSlider", "min": 10, "max": 140, "step": 5, "defaultValue": 65, "unit": "W", "defaultWeight": 5 },
+        "output_ports": { "label": "接口数量", "controlType": "continuousSlider", "min": 1, "max": 5, "step": 1, "defaultValue": 3, "unit": "个", "defaultWeight": 4 },
+        "weight": { "label": "重量", "controlType": "continuousSlider", "min": 150, "max": 800, "step": 10, "defaultValue": 400, "unit": "g", "defaultWeight": 4 },
+        "charging_method": { "label": "电源方式", "controlType": "discreteSelect", "options": ["电池", "充电", "太阳能"], "defaultValue": "充电", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "露营灯/头灯",
+      "fields": {
+        "brightness": { "label": "亮度", "controlType": "continuousSlider", "min": 100, "max": 2000, "step": 50, "defaultValue": 800, "unit": "lm", "defaultWeight": 5 },
+        "battery_life": { "label": "续航", "controlType": "continuousSlider", "min": 4, "max": 80, "step": 2, "defaultValue": 20, "unit": "小时", "defaultWeight": 5 },
+        "waterproof_rating": { "label": "防水等级", "controlType": "discreteSelect", "options": ["IPX4", "IPX5", "IPX7"], "defaultValue": "IPX7", "defaultWeight": 5 },
+        "weight": { "label": "重量", "controlType": "continuousSlider", "min": 80, "max": 1000, "step": 10, "defaultValue": 300, "unit": "g", "defaultWeight": 3 },
+        "rechargeable": { "label": "充电宝功能", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "户外手表",
+      "fields": {
+        "battery_life": { "label": "续航", "controlType": "continuousSlider", "min": 5, "max": 90, "step": 1, "defaultValue": 30, "unit": "天", "defaultWeight": 5 },
+        "waterproof_rating": { "label": "防水等级", "controlType": "discreteSelect", "options": ["5ATM", "10ATM"], "defaultValue": "10ATM", "defaultWeight": 5 },
+        "gps": { "label": "定位", "controlType": "multiSelect", "options": ["GPS", "北斗", "GLONASS"], "defaultValue": ["GPS", "北斗"], "defaultWeight": 5 },
+        "sports_modes": { "label": "运动模式", "controlType": "continuousSlider", "min": 20, "max": 200, "step": 5, "defaultValue": 100, "unit": "种", "defaultWeight": 4 },
+        "heart_rate_monitor": { "label": "血氧/心率监测", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "助听器",
+      "fields": {
+        "channels": { "label": "通道数", "controlType": "continuousSlider", "min": 2, "max": 24, "step": 1, "defaultValue": 12, "unit": "通道", "defaultWeight": 5 },
+        "noise_reduction": { "label": "降噪等级", "controlType": "continuousSlider", "min": 1, "max": 5, "step": 1, "defaultValue": 4, "unit": "级", "defaultWeight": 5 },
+        "bluetooth": { "label": "蓝牙连接", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 },
+        "charging_method": { "label": "充电方式", "controlType": "discreteSelect", "options": ["电池", "充电", "无线充电"], "defaultValue": "充电", "defaultWeight": 3 },
+        "type": { "label": "佩戴方式", "controlType": "discreteSelect", "options": ["耳背式", "耳内式", "耳道式"], "defaultValue": "耳内式", "defaultWeight": 4 }
+      }
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "轮椅（手动/电动）",
+      "fields": {
+        "net_weight": { "label": "重量", "controlType": "continuousSlider", "min": 10, "max": 50, "step": 1, "defaultValue": 25, "unit": "kg", "defaultWeight": 4 },
+        "load_capacity": { "label": "承重", "controlType": "continuousSlider", "min": 100, "max": 150, "step": 5, "defaultValue": 120, "unit": "kg", "defaultWeight": 5 },
+        "fold_method": { "label": "折叠方式", "controlType": "discreteSelect", "options": ["手动折叠", "电动折叠"], "defaultValue": "电动折叠", "defaultWeight": 4 },
+        "seat_width": { "label": "座宽", "controlType": "continuousSlider", "min": 40, "max": 55, "step": 1, "defaultValue": 45, "unit": "cm", "defaultWeight": 4 },
+        "type": { "label": "类型", "controlType": "discreteSelect", "options": ["手动", "电动"], "defaultValue": "电动", "defaultWeight": 5 }
+      }
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "电子阅读器",
+      "fields": {
+        "display_size": { "label": "屏幕尺寸", "controlType": "continuousSlider", "min": 5, "max": 13.3, "step": 0.1, "defaultValue": 7, "unit": "英寸", "defaultWeight": 5 },
+        "display_type": { "label": "墨水屏类型", "controlType": "discreteSelect", "options": ["黑白墨水屏", "彩色墨水屏"], "defaultValue": "黑白墨水屏", "defaultWeight": 4 },
+        "resolution_ppi": { "label": "屏幕像素密度", "controlType": "continuousSlider", "min": 150, "max": 400, "step": 10, "defaultValue": 300, "unit": "PPI", "defaultWeight": 4 },
+        "storage": { "label": "存储容量", "controlType": "multiSelect", "options": ["8GB", "16GB", "32GB", "64GB", "128GB"], "defaultValue": ["16GB"], "defaultWeight": 3 },
+        "front_light": { "label": "前光与色温", "controlType": "discreteSelect", "options": ["无前光", "前光", "前光+色温调节"], "defaultValue": "前光+色温调节", "defaultWeight": 4 },
+        "waterproof": { "label": "防水", "controlType": "discreteSelect", "options": ["不支持", "IPX7", "IPX8"], "defaultValue": "不支持", "defaultWeight": 3 },
+        "stylus_support": { "label": "手写笔支持", "controlType": "switch", "options": ["支持", "不支持"], "defaultValue": "不支持", "defaultWeight": 3 },
+        "connectivity": { "label": "连接方式", "controlType": "multiSelect", "options": ["Wi-Fi", "蓝牙", "蜂窝网络"], "defaultValue": ["Wi-Fi", "蓝牙"], "defaultWeight": 3 },
+        "weight": { "label": "重量", "controlType": "continuousSlider", "min": 100, "max": 800, "step": 10, "defaultValue": 220, "unit": "g", "defaultWeight": 3 }
+      }
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "跌倒报警器/老人手机",
+      "fields": {
+        "alert_method": { "label": "报警方式", "controlType": "multiSelect", "options": ["APP推送", "短信", "电话", "声光"], "defaultValue": ["APP推送", "短信", "电话"], "defaultWeight": 5 },
+        "standby_time": { "label": "续航", "controlType": "continuousSlider", "min": 3, "max": 30, "step": 1, "defaultValue": 15, "unit": "天", "defaultWeight": 4 },
+        "waterproof": { "label": "防水", "controlType": "discreteSelect", "options": ["IPX4", "IPX5", "IPX7"], "defaultValue": "IPX7", "defaultWeight": 4 },
+        "location": { "label": "GPS定位", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 },
+        "call_sos": { "label": "双向通话/SOS", "controlType": "switch", "options": ["有", "无"], "defaultValue": "有", "defaultWeight": 4 }
+      }
+    }
+  ]
+}

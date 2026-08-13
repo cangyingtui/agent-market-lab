@@ -17,6 +17,13 @@ x-backend-env: &backend-env
     REDIS_HEARTBEAT_TTL_SECONDS: ${REDIS_HEARTBEAT_TTL_SECONDS}
     HEAVY_RESOURCE_LOCK_TTL_SECONDS: ${HEAVY_RESOURCE_LOCK_TTL_SECONDS:-7200}
     PDF_EXPORT_LOCK_TTL_SECONDS: ${PDF_EXPORT_LOCK_TTL_SECONDS:-900}
+    CUSTOM_COMPETITOR_BACKFILL_ENABLED: ${CUSTOM_COMPETITOR_BACKFILL_ENABLED:-true}
+    CUSTOM_COMPETITOR_BRAND_SIMILARITY_THRESHOLD: ${CUSTOM_COMPETITOR_BRAND_SIMILARITY_THRESHOLD:-0.85}
+    CUSTOM_COMPETITOR_PRICE_REL_TOLERANCE: ${CUSTOM_COMPETITOR_PRICE_REL_TOLERANCE:-0.15}
+    CUSTOM_COMPETITOR_PRICE_ABS_TOLERANCE_CNY: ${CUSTOM_COMPETITOR_PRICE_ABS_TOLERANCE_CNY:-50}
+    CUSTOM_COMPETITOR_BACKFILL_STALE_SECONDS: ${CUSTOM_COMPETITOR_BACKFILL_STALE_SECONDS:-900}
+    CUSTOM_COMPETITOR_BACKFILL_MAX_RETRIES: ${CUSTOM_COMPETITOR_BACKFILL_MAX_RETRIES:-3}
+    CUSTOM_COMPETITOR_BACKFILL_POLL_SECONDS: ${CUSTOM_COMPETITOR_BACKFILL_POLL_SECONDS:-60}
     JWT_SECRET_KEY: ${JWT_SECRET_KEY}
     JWT_ALGORITHM: ${JWT_ALGORITHM}
     ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
@@ -44,6 +51,24 @@ x-backend-env: &backend-env
     ENRICHMENT_API_BASE: ${ENRICHMENT_API_BASE}
     ENRICHMENT_CACHE_TTL_HOURS: ${ENRICHMENT_CACHE_TTL_HOURS}
     ENRICHMENT_MAX_ITEMS_PER_RUN: ${ENRICHMENT_MAX_ITEMS_PER_RUN}
+    PUBLIC_EVIDENCE_ENABLED: ${PUBLIC_EVIDENCE_ENABLED:-false}
+    PUBLIC_EVIDENCE_PROVIDER: ${PUBLIC_EVIDENCE_PROVIDER:-bailian}
+    PUBLIC_EVIDENCE_API_KEY: ${PUBLIC_EVIDENCE_API_KEY:-}
+    PUBLIC_EVIDENCE_API_BASE: ${PUBLIC_EVIDENCE_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+    PUBLIC_EVIDENCE_MODEL: ${PUBLIC_EVIDENCE_MODEL:-qwen-plus}
+    PUBLIC_EVIDENCE_TIMEOUT_SECONDS: ${PUBLIC_EVIDENCE_TIMEOUT_SECONDS:-12}
+    PUBLIC_EVIDENCE_TOTAL_TIMEOUT_SECONDS: ${PUBLIC_EVIDENCE_TOTAL_TIMEOUT_SECONDS:-30}
+    PUBLIC_EVIDENCE_CACHE_TTL_HOURS: ${PUBLIC_EVIDENCE_CACHE_TTL_HOURS:-72}
+    PUBLIC_EVIDENCE_BASIC_QUERY_LIMIT: ${PUBLIC_EVIDENCE_BASIC_QUERY_LIMIT:-2}
+    PUBLIC_EVIDENCE_PRO_QUERY_LIMIT: ${PUBLIC_EVIDENCE_PRO_QUERY_LIMIT:-6}
+    PRICE_ENRICHMENT_ENABLED: ${PRICE_ENRICHMENT_ENABLED:-false}
+    PRICE_ENRICHMENT_WRITE_MASTER: ${PRICE_ENRICHMENT_WRITE_MASTER:-false}
+    PRICE_ENRICHMENT_API_KEY: ${PRICE_ENRICHMENT_API_KEY:-}
+    PRICE_ENRICHMENT_API_BASE: ${PRICE_ENRICHMENT_API_BASE:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+    PRICE_ENRICHMENT_MODEL: ${PRICE_ENRICHMENT_MODEL:-qwen-plus}
+    PRICE_ENRICHMENT_MAX_ITEMS_PER_REQUEST: ${PRICE_ENRICHMENT_MAX_ITEMS_PER_REQUEST:-4}
+    PRICE_ENRICHMENT_MIN_CONFIDENCE: ${PRICE_ENRICHMENT_MIN_CONFIDENCE:-0.65}
+    PRICE_ENRICHMENT_TIMEOUT_SECONDS: ${PRICE_ENRICHMENT_TIMEOUT_SECONDS:-20}
     ENABLE_DISTILL_CHECK: ${ENABLE_DISTILL_CHECK}
     DISTILL_MODEL_PATH: ${DISTILL_MODEL_PATH}
     DISTILL_API_BASE: ${DISTILL_API_BASE}
@@ -95,6 +120,9 @@ services:
     command:
       - "--character-set-server=utf8mb4"
       - "--collation-server=utf8mb4_unicode_ci"
+      - "--innodb-buffer-pool-size=256M"
+      - "--max-connections=50"
+    mem_limit: 384m
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
@@ -110,7 +138,8 @@ services:
     restart: unless-stopped
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD}
-    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes", "--maxmemory", "128mb", "--maxmemory-policy", "allkeys-lru"]
+    mem_limit: 160m
     volumes:
       - redis_data:/data
     healthcheck:
@@ -119,19 +148,39 @@ services:
       timeout: 5s
       retries: 12
 
-  api:
+  data-init:
     <<: *backend-env
-    image: agentsim-backend:prod
+    image: agentsim-backend-core:prod
     build:
       context: .
       dockerfile: Dockerfile.backend
-    container_name: agentsim-prod-api
-    restart: unless-stopped
+      target: core
+    container_name: agentsim-prod-data-init
+    restart: "no"
     depends_on:
       mysql:
         condition: service_healthy
       redis:
         condition: service_healthy
+    mem_limit: 256m
+    command: ["python", "scripts/initialize_production.py"]
+
+  api:
+    <<: *backend-env
+    image: agentsim-backend-core:prod
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      target: core
+    container_name: agentsim-prod-api
+    restart: unless-stopped
+    depends_on:
+      data-init:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    # /health loads the FAISS index; observed steady usage is about 320-360 MiB.
+    mem_limit: 512m
     expose:
       - "8000"
     volumes:
@@ -140,7 +189,7 @@ services:
 
   worker:
     <<: *backend-env
-    image: agentsim-backend:prod
+    image: agentsim-backend-core:prod
     container_name: agentsim-prod-worker
     restart: unless-stopped
     depends_on:
@@ -152,11 +201,12 @@ services:
         condition: service_healthy
     volumes:
       - exports_data:/app/logs/exports
+    mem_limit: 640m
     command: ["python", "engine/worker.py"]
 
   monitor:
     <<: *backend-env
-    image: agentsim-backend:prod
+    image: agentsim-backend-core:prod
     container_name: agentsim-prod-monitor
     restart: unless-stopped
     depends_on:
@@ -166,11 +216,16 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    mem_limit: 96m
     command: ["python", "engine/monitor.py"]
 
   export-worker:
     <<: *backend-env
-    image: agentsim-backend:prod
+    image: agentsim-backend-export:prod
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      target: export
     container_name: agentsim-prod-export-worker
     restart: unless-stopped
     depends_on:
@@ -182,6 +237,7 @@ services:
         condition: service_healthy
     volumes:
       - exports_data:/app/logs/exports
+    mem_limit: 512m
     command: ["python", "engine/export_worker.py"]
 
   frontend:
@@ -193,6 +249,7 @@ services:
         VITE_API_BASE: ${VITE_API_BASE:-}
     container_name: agentsim-prod-frontend
     restart: unless-stopped
+    mem_limit: 64m
     depends_on:
       api:
         condition: service_started

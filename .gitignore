@@ -11,11 +11,25 @@ frontend/tsconfig.tsbuildinfo
 
 knowledge_model/
 logs/
+batch_runs/
 releases/
+!releases/
+releases/*
+!releases/price_enrichment/
+releases/price_enrichment/*
+!releases/price_enrichment/missing_product_prices.tsv
+!releases/price_enrichment/price_updates_review.csv
+!releases/price_enrichment/price_updates_review_002.csv
+!releases/price_enrichment/gpt_manual_price_actions_20260728.csv
+!releases/price_enrichment/migration_manifest.json
 exports/
 .playwright-browsers/
 .tmp/
 data_seed/
+!data_seed/
+data_seed/*
+!data_seed/*.json
+!data_seed/*.jsonl
 __pycache__/
 *.pyc
 *.pyo
@@ -30,3 +44,26 @@ test2.txt
 Dockerfile.backend.incremental
 .DS_Store
 Thumbs.db
+
+# 数据/图片/文档产物（不进 git）
+*.xlsx
+*.pdf
+*.png
+*.jpg
+*.jpeg
+*.docx
+*.csv
+engine/sales_stats.json
+
+# 临时/调试脚本
+temp_*
+_report_extracted.txt
+
+# 数据与工作目录
+data/
+test_data/
+assets/
+work/
+frontend/src/src/
+scripts/scripts/
+avatar.jpg

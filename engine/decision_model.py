@@ -6,9 +6,10 @@ from typing import Any
 from urllib.parse import urlparse
 
 from app.config import settings
+from app.openai_compat import create_openai_client
 from app.time_utils import utc_now_iso
 from engine.evidence_utils import PRODUCT_EVIDENCE_KEYS, evidence_items
-from engine.maut_model import build_decision_model_summary, enrich_decisions_with_maut
+from engine.maut_model import build_decision_model_summary, enrich_decisions_with_maut, adaptive_thresholds, safe_float
 from engine.report_generator import extract_json_object
 
 
@@ -63,9 +64,19 @@ def fallback_decisions(
     product = snapshot.get("product_definition") or {}
     competitor_items = evidence_items(evidence, *PRODUCT_EVIDENCE_KEYS)
     decisions: list[dict[str, Any]] = []
+    # First pass: compute all scores
+    raw_scores: list[float] = []
+    agents_data: list[dict[str, Any]] = []
     for agent in agents:
         score = price_score(agent, product, competitor_items) + feature_match_score(agent, product)
         score = max(0.05, min(score, 0.95))
+        raw_scores.append(score)
+        agents_data.append({"agent": agent, "score": score})
+    # Compute adaptive thresholds from score distribution
+    low_t, high_t = adaptive_thresholds(raw_scores)
+    for item in agents_data:
+        agent = item["agent"]
+        score = item["score"]
         blockers = []
         if agent.get("price_sensitivity") == "high":
             blockers.append("价格敏感，需要更强价格理由或促销支撑")
@@ -76,7 +87,7 @@ def fallback_decisions(
             {
                 "agent_id": agent["agent_id"],
                 "purchase_intent_score": round(score, 4),
-                "decision": "buy" if score >= 0.68 else "consider" if score >= 0.45 else "not_buy",
+                "decision": "buy" if score >= high_t else "consider" if score >= low_t else "not_buy",
                 "drivers": drivers or ["产品规格具备基础吸引力"],
                 "blockers": blockers,
                 "reason": "规则 fallback：综合价格敏感度、规格匹配和竞品证据给出购买意愿。",
@@ -87,7 +98,7 @@ def fallback_decisions(
     return {
         "prompt_version": PROMPT_VERSION,
         "decisions": decisions,
-        "decision_model": build_decision_model_summary(decisions),
+        "decision_model": build_decision_model_summary(decisions, snapshot),
         "is_fallback": True,
         "fallback_reason": error or "规则化购买决策",
     }
@@ -169,29 +180,55 @@ def normalize_llm_decisions(data: dict[str, Any], agents: list[dict[str, Any]]) 
 
 
 def select_reasoning_agents(agents: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+    """按客群比例抽样，确保 LLM 推理样本的代表性。
+
+    每个客群的抽样数 ∝ 该客群在总人群中的比例。
+    每个客群至少分配 1 个名额（除非 limit 小于客群数）。
+    """
     if len(agents) <= limit:
         return agents
-    selected: list[dict[str, Any]] = []
-    seen_ids: set[str] = set()
+
+    # 按客群分组
     segments: dict[str, list[dict[str, Any]]] = {}
     for agent in agents:
         segments.setdefault(str(agent.get("segment") or "目标用户"), []).append(agent)
-    while len(selected) < limit:
-        progressed = False
-        for rows in segments.values():
-            if not rows:
-                continue
-            agent = rows.pop(0)
-            agent_id = str(agent.get("agent_id"))
-            if agent_id in seen_ids:
-                continue
-            selected.append(agent)
-            seen_ids.add(agent_id)
-            progressed = True
-            if len(selected) >= limit:
-                break
-        if not progressed:
+
+    segment_names = list(segments.keys())
+    segment_sizes = [len(segments[name]) for name in segment_names]
+    total = sum(segment_sizes)
+
+    # 每个客群最少 1 个，剩余按比例分配
+    min_per_segment = min(1, limit // len(segment_names)) if segment_names else 0
+    guaranteed = min_per_segment * len(segment_names)
+    remaining = max(0, limit - guaranteed)
+
+    allocations: list[int] = []
+    for name, size in zip(segment_names, segment_sizes):
+        if remaining > 0:
+            alloc = max(min_per_segment, int(round(remaining * size / total)))
+        else:
+            alloc = min_per_segment
+        allocations.append(min(alloc, len(segments[name])))  # 不超过该段实际人数
+
+    # 补齐差额（因取整导致）
+    shortfall = limit - sum(allocations)
+    order = sorted(
+        range(len(segment_names)),
+        key=lambda i: (len(segments[segment_names[i]]) - allocations[i], -i),
+        reverse=True,
+    )
+    for idx in order:
+        if shortfall <= 0:
             break
+        extra = min(shortfall, len(segments[segment_names[idx]]) - allocations[idx])
+        allocations[idx] += extra
+        shortfall -= extra
+
+    # 从每个客群取对应数量（取前 N 个以保证确定性）
+    selected: list[dict[str, Any]] = []
+    for name, alloc in zip(segment_names, allocations):
+        selected.extend(segments[name][:alloc])
+
     return selected
 
 
@@ -214,9 +251,7 @@ def generate_purchase_decisions(
     sampled_agents = select_reasoning_agents(agents, max(1, settings.social_llm_sample_size))
     messages = build_decision_prompt(snapshot, evidence, sampled_agents)
     try:
-        from openai import OpenAI
-
-        client = OpenAI(
+        client = create_openai_client(
             api_key=settings.llm_api_key,
             base_url=settings.llm_api_base or None,
             timeout=settings.llm_timeout_seconds,
@@ -224,7 +259,7 @@ def generate_purchase_decisions(
         response = client.chat.completions.create(
             model=settings.llm_model,
             messages=messages,
-            temperature=0.15,
+            temperature=0.1,  # 轻微随机性，模拟真实市场不确定性；主要扰动由 MAUT 环境波动指数控制
             response_format={"type": "json_object"},
         )
         content = response.choices[0].message.content or ""
@@ -255,7 +290,7 @@ def generate_purchase_decisions(
         return {
             "prompt_version": PROMPT_VERSION,
             "decisions": decisions,
-            "decision_model": build_decision_model_summary(decisions),
+            "decision_model": build_decision_model_summary(decisions, snapshot),
             "is_fallback": False,
             "prompt_trace": {
                 "prompt_version": PROMPT_VERSION,

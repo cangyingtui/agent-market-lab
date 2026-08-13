@@ -1,0 +1,248 @@
+[
+  {
+    "name": "年轻白领",
+    "description": "一二线城市通勤办公人群，关注效率、品牌和颜值。",
+    "default_ratio": 0.25,
+    "tags": {
+      "age": "22-35",
+      "income": "middle",
+      "city": "tier1-tier2",
+      "life_stage": "通勤办公",
+      "price_sensitivity": "medium",
+      "preferences": ["效率", "设计", "品牌"],
+      "channels": ["电商平台", "品牌旗舰店", "内容种草"],
+      "motivations": ["提升效率", "改善体验", "彰显审美"],
+      "concerns": ["售后体验", "价格波动", "真实口碑"]
+    }
+  },
+  {
+    "name": "价格敏感型家庭用户",
+    "description": "家庭采购决策者，重视性价比、耐用度和售后。",
+    "default_ratio": 0.3,
+    "tags": {
+      "age": "30-50",
+      "income": "middle",
+      "city": "tier2-tier4",
+      "life_stage": "家庭采购",
+      "price_sensitivity": "high",
+      "preferences": ["性价比", "耐用", "售后"],
+      "channels": ["综合电商", "线下商超", "亲友推荐"],
+      "motivations": ["控制预算", "减少维修", "家庭共享"],
+      "concerns": ["价格虚高", "质量稳定性", "售后成本"]
+    }
+  },
+  {
+    "name": "品质升级用户",
+    "description": "愿意为体验和可靠性支付溢价的消费升级人群。",
+    "default_ratio": 0.25,
+    "tags": {
+      "age": "28-45",
+      "income": "middle-high",
+      "city": "tier1-tier2",
+      "life_stage": "消费升级",
+      "price_sensitivity": "low",
+      "preferences": ["体验", "品质", "服务"],
+      "channels": ["品牌旗舰店", "会员渠道", "高端商场"],
+      "motivations": ["提升生活品质", "降低使用烦恼", "获得服务保障"],
+      "concerns": ["溢价是否合理", "长期可靠性", "服务兑现"]
+    }
+  },
+  {
+    "name": "专业/重度用户",
+    "description": "对参数、性能或专业场景适配度敏感的高频用户。",
+    "default_ratio": 0.2,
+    "tags": {
+      "age": "24-45",
+      "income": "middle-high",
+      "city": "tier1-tier3",
+      "usage": "heavy",
+      "life_stage": "高频专业使用",
+      "price_sensitivity": "medium",
+      "preferences": ["性能", "参数", "专业功能"],
+      "channels": ["专业论坛", "垂直评测", "品牌官网"],
+      "motivations": ["提高效率", "满足专业场景", "追求性能上限"],
+      "concerns": ["参数缩水", "兼容性", "稳定性"]
+    }
+  },
+  {
+    "name": "银发康养家庭",
+    "description": "面向居家照护、康养和适老场景的家庭决策人群，关注安全、便利和售后。",
+    "default_ratio": 0.18,
+    "tags": {
+      "age": "55+",
+      "income": "middle",
+      "city": "tier2-tier4",
+      "life_stage": "居家康养/照护家庭",
+      "price_sensitivity": "medium",
+      "preferences": ["安全", "照护", "售后"],
+      "channels": ["线下体验店", "医院/机构推荐", "亲友推荐"],
+      "motivations": ["降低照护压力", "提升安全感", "提高生活便利"],
+      "concerns": ["使用门槛", "安全风险", "售后响应"]
+    }
+  },
+  {
+    "name": "一线城市高收入用户",
+    "description": "高收入、快节奏、愿意为品牌和体验支付溢价的人群。",
+    "default_ratio": 0.16,
+    "tags": {
+      "age": "28-45",
+      "income": "high",
+      "city": "tier1",
+      "life_stage": "高收入快节奏",
+      "price_sensitivity": "low",
+      "preferences": ["品牌", "体验", "效率"],
+      "channels": ["品牌旗舰店", "会员渠道", "高端商场"],
+      "motivations": ["节省时间", "获得高品质体验", "体现身份感"],
+      "concerns": ["品牌调性", "服务体验", "隐私安全"]
+    }
+  },
+  {
+    "name": "下沉市场实用型用户",
+    "description": "三四线及县域市场用户，重视耐用、价格和基础功能。",
+    "default_ratio": 0.22,
+    "tags": {
+      "age": "25-55",
+      "income": "low-middle",
+      "city": "lower-tier",
+      "life_stage": "实用型家庭/个人",
+      "price_sensitivity": "high",
+      "preferences": ["耐用", "价格", "实用"],
+      "channels": ["综合电商", "本地门店", "短视频直播"],
+      "motivations": ["满足基础需求", "控制支出", "减少故障"],
+      "concerns": ["售后不便", "虚假宣传", "耗材成本"]
+    }
+  },
+  {
+    "name": "母婴照护人群",
+    "description": "孕产、育儿和家庭照护决策者，关注安全材质、便捷和可信品牌。",
+    "default_ratio": 0.14,
+    "tags": {
+      "age": "25-40",
+      "income": "middle",
+      "city": "tier1-tier3",
+      "life_stage": "孕产/育儿家庭",
+      "price_sensitivity": "medium",
+      "preferences": ["安全", "材质", "便捷"],
+      "channels": ["母婴社区", "内容种草", "品牌旗舰店"],
+      "motivations": ["保障孩子安全", "减少照护负担", "提升便利性"],
+      "concerns": ["材质安全", "清洁维护", "适龄性"]
+    }
+  },
+  {
+    "name": "户外露营爱好者",
+    "description": "高频户外、露营和周末出行人群，关注便携、耐候和可靠性。",
+    "default_ratio": 0.14,
+    "tags": {
+      "age": "22-45",
+      "income": "middle",
+      "city": "tier1-tier3",
+      "usage": "outdoor",
+      "life_stage": "户外露营/周末出行",
+      "price_sensitivity": "medium",
+      "preferences": ["便携", "防水", "可靠"],
+      "channels": ["户外社群", "垂直评测", "电商平台"],
+      "motivations": ["提升出行体验", "应对复杂环境", "装备升级"],
+      "concerns": ["重量体积", "耐候性", "售后维修"]
+    }
+  },
+  {
+    "name": "学生与初入职场人群",
+    "description": "预算有限但愿意尝试新产品的人群，重视性价比、外观和社交传播。",
+    "default_ratio": 0.2,
+    "tags": {
+      "age": "18-25",
+      "income": "low-middle",
+      "city": "tier1-tier3",
+      "life_stage": "学生/初入职场",
+      "price_sensitivity": "high",
+      "preferences": ["性价比", "颜值", "社交"],
+      "channels": ["短视频平台", "校园社群", "综合电商"],
+      "motivations": ["尝鲜体验", "社交表达", "预算内升级"],
+      "concerns": ["价格压力", "耐用性", "同伴评价"]
+    }
+  },
+  {
+    "name": "科技尝鲜用户",
+    "description": "对新技术和新品发布敏感，愿意尝试新功能并影响周边口碑的人群。",
+    "default_ratio": 0.12,
+    "tags": {
+      "age": "20-40",
+      "income": "middle-high",
+      "city": "tier1-tier2",
+      "usage": "early-adopter",
+      "life_stage": "科技尝鲜",
+      "price_sensitivity": "medium",
+      "preferences": ["新技术", "参数", "首发"],
+      "channels": ["科技媒体", "发布会", "垂直社区"],
+      "motivations": ["尝试新功能", "表达领先感", "影响周边口碑"],
+      "concerns": ["首发稳定性", "技术成熟度", "保值率"]
+    }
+  },
+  {
+    "name": "企业团购/机构采购",
+    "description": "面向企业、学校、医院或机构采购场景，关注批量价格、交付和服务保障。",
+    "default_ratio": 0.1,
+    "tags": {
+      "age": "30-55",
+      "income": "organization-budget",
+      "city": "tier1-tier4",
+      "buyer": "organization",
+      "life_stage": "机构采购",
+      "price_sensitivity": "high",
+      "preferences": ["批量价格", "交付", "服务"],
+      "channels": ["招采平台", "经销商", "企业服务渠道"],
+      "motivations": ["降低采购成本", "保障交付", "统一管理"],
+      "concerns": ["供货稳定", "合同履约", "售后责任"]
+    }
+  },
+  {
+    "name": "礼品采购人群",
+    "description": "面向节日、商务或家庭送礼场景，关注品牌、包装和体面程度。",
+    "default_ratio": 0.1,
+    "tags": {
+      "age": "25-55",
+      "income": "middle-high",
+      "city": "tier1-tier3",
+      "scenario": "gift",
+      "life_stage": "礼品/商务采购",
+      "price_sensitivity": "medium",
+      "preferences": ["品牌", "包装", "体面"],
+      "channels": ["品牌旗舰店", "礼品渠道", "高端商场"],
+      "motivations": ["送礼体面", "表达关系", "降低选择风险"],
+      "concerns": ["包装质感", "品牌认知", "交付时效"]
+    }
+  },
+  {
+    "name": "健康管理关注者",
+    "description": "关注身体健康、运动、睡眠和长期管理体验的人群。",
+    "default_ratio": 0.16,
+    "tags": {
+      "age": "25-60",
+      "income": "middle",
+      "city": "tier1-tier3",
+      "life_stage": "健康管理",
+      "price_sensitivity": "medium",
+      "preferences": ["健康", "运动", "长期管理"],
+      "channels": ["健康社区", "电商平台", "线下体验"],
+      "motivations": ["长期健康改善", "数据追踪", "建立习惯"],
+      "concerns": ["数据准确性", "隐私", "坚持成本"]
+    }
+  },
+  {
+    "name": "租房小户型用户",
+    "description": "空间有限、搬迁频率较高的人群，关注小体积、易安装和多功能。",
+    "default_ratio": 0.16,
+    "tags": {
+      "age": "22-38",
+      "income": "low-middle",
+      "city": "tier1-tier2",
+      "housing": "small",
+      "life_stage": "租房/小户型",
+      "price_sensitivity": "high",
+      "preferences": ["小体积", "易安装", "多功能"],
+      "channels": ["综合电商", "内容种草", "本地生活平台"],
+      "motivations": ["节省空间", "降低搬迁成本", "一物多用"],
+      "concerns": ["安装复杂", "占用空间", "退换货成本"]
+    }
+  }
+]

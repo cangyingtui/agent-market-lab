@@ -213,6 +213,38 @@ select {
   box-shadow: none;
 }
 
+.env-volatility-note {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: #666;
+  cursor: help;
+}
+
+.neutral-help-icon {
+  color: #8c8c8c;
+  cursor: help;
+  font-size: 14px;
+}
+
+.environment-volatility-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.age-range-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
 .page-title-row,
 .progress-header {
   display: flex;
@@ -435,6 +467,41 @@ select {
 .scheme-item {
   padding-left: 8px !important;
   border-radius: 8px;
+  min-width: 0;
+  align-items: flex-start !important;
+}
+
+.scheme-item .ant-list-item-meta,
+.scheme-item .ant-list-item-meta-content,
+.scheme-item .ant-list-item-action {
+  min-width: 0;
+}
+
+.scheme-item .ant-list-item-action {
+  flex: 0 0 auto;
+  margin-inline-start: 8px;
+}
+
+.scheme-title-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.scheme-title-row .ant-tag {
+  flex: 0 0 auto;
+  margin-inline-end: 0;
+}
+
+.scheme-title-text {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .scheme-item.active {
@@ -484,6 +551,12 @@ select {
   grid-template-columns: minmax(180px, 1fr) 140px;
   gap: 12px;
   align-items: center;
+}
+
+.inline-help-button {
+  flex: 0 0 auto;
+  color: #8c8c8c;
+  padding-inline: 4px;
 }
 
 .crowd-ratio-list {
@@ -570,6 +643,55 @@ select {
 .selected-competitor-list {
   margin-top: 8px;
   border-top: 1px solid #eef2f7;
+}
+
+.settings-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.inline-detail-link {
+  padding-inline: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.inline-detail-link:hover {
+  color: #2563eb;
+}
+
+.selected-detail-list {
+  margin: -6px 0 12px;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #fbfdff;
+}
+
+.selected-detail-list .ant-list-item {
+  padding: 6px 10px;
+}
+
+.muted-block {
+  margin: 0 !important;
+  color: #64748b;
+  line-height: 1.7;
+}
+
+.price-missing-inline {
+  white-space: nowrap;
+}
+
+.muted-help-icon {
+  color: #94a3b8;
+  cursor: help;
+  font-size: 13px;
+}
+
+.tiny-price-note {
+  display: block;
+  margin-top: 8px;
+  font-size: 12px;
 }
 
 .run-action-card {
@@ -704,6 +826,11 @@ select {
   width: 100%;
   height: 380px;
   min-height: 380px;
+}
+
+.compact-chart {
+  min-height: 260px;
+  height: 260px;
 }
 
 .print-container {
@@ -961,6 +1088,12 @@ select {
 
 .report-card .ant-tabs-nav {
   margin-bottom: 18px;
+}
+
+.report-crowd-profile,
+.nested-card .ant-descriptions-item-content {
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .public-navbar {

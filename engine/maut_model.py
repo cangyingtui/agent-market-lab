@@ -293,13 +293,13 @@ def price_acceptance_score(agent: dict[str, Any], product: dict[str, Any], marke
     sensitivity = str(agent.get("price_sensitivity") or "medium")
     if sensitivity == "low":
         alpha = 3.0   # 高基准意愿
-        beta = 28     # 价格不敏感
+        beta = 22     # 价格不敏感（降低陡峭度，避免高价产品过早触底）
     elif sensitivity == "high":
         alpha = 1.5   # 低基准意愿
-        beta = 55     # 价格极敏感
+        beta = 45     # 价格极敏感（同步降低，保持相对差异）
     else:  # medium
         alpha = 2.2
-        beta = 40
+        beta = 32     # 从 40 降至 32：高价产品（>¥10k）在中等敏感人群中仍保留一定接受度
 
     # Standard logit: score → 1 when price_burden → 0, score → 0 when price_burden → ∞
     logit = alpha - beta * price_burden
@@ -307,7 +307,10 @@ def price_acceptance_score(agent: dict[str, Any], product: dict[str, Any], marke
 
     # Segment-level adjustment: 高端人群略宽容，价格敏感人群略严苛
     gamma = segment_price_coefficient(agent)
-    return clamp(raw * gamma, 0.05, 0.98)
+    # Floor raised from 0.05 to 0.15: even extremely expensive products
+    # (medical devices, premium equipment) retain minimum price acceptance,
+    # preventing the MAUT score from being entirely dominated by price.
+    return clamp(raw * gamma, 0.15, 0.98)
 
 
 def promotion_bonus_score(agent: dict[str, Any], market: dict[str, Any]) -> float:
@@ -592,7 +595,29 @@ def enrich_decisions_with_maut(
         copied = dict(decision)
         agent = agent_map.get(copied.get("agent_id"), {})
         maut_scores = compute_maut_scores(snapshot, evidence, agent)
-        maut_score = weighted_purchase_intent(maut_scores, weights)
+        # Dynamic weight redistribution: when price_acceptance hits the floor
+        # (≤ 0.20, i.e. product is very expensive for this agent), reduce the
+        # price dimension weight and redistribute to quality dimensions.
+        # This prevents high-price products like medical devices from having
+        # their PI entirely dominated by near-zero price scores.
+        pa_score = maut_scores.get("price_acceptance", 0.5)
+        if pa_score <= 0.20:
+            active_weights = dict(weights)
+            excess = active_weights.get("price_acceptance", 0.25) - 0.10
+            if excess > 0:
+                active_weights["price_acceptance"] = 0.10
+                # Redistribute to quality-driven dimensions
+                active_weights["function_fit"] = active_weights.get("function_fit", 0.30) + excess * 0.50
+                active_weights["brand_loyalty"] = active_weights.get("brand_loyalty", 0.15) + excess * 0.30
+                active_weights["social_influence"] = active_weights.get("social_influence", 0.20) + excess * 0.20
+                # Re-normalize
+                total = sum(active_weights.values())
+                active_weights = {k: round(v / total, 6) for k, v in active_weights.items()}
+                maut_score = weighted_purchase_intent(maut_scores, active_weights)
+            else:
+                maut_score = weighted_purchase_intent(maut_scores, weights)
+        else:
+            maut_score = weighted_purchase_intent(maut_scores, weights)
         maut_score = apply_environment_perturbation(maut_score, agent, env_volatility)
         # Deterministic agent-level preference noise
         agent_id = str(agent.get("agent_id", ""))

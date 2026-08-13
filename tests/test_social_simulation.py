@@ -114,6 +114,8 @@ def test_social_propagation_updates_neighbor_influence_and_stops_by_round_limit(
 
     assert 2 <= result["rounds_executed"] <= 3
     assert result["round_summaries"][1]["max_score_change"] > 0
+    assert "decision_weighted_distribution" in result["round_summaries"][0]
+    assert round(sum(result["round_summaries"][0]["decision_weighted_distribution"].values()), 6) == 1.0
     assert all(item["simulation_round"] == result["rounds_executed"] for item in result["final_decisions"])
     assert any("neighbor_purchase_intent_avg" in item for item in result["final_decisions"])
 

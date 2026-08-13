@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import math
 from collections import Counter
 from typing import Any
@@ -147,7 +148,7 @@ def configured_competitors(market_config: dict[str, Any]) -> list[dict[str, Any]
                 "brand": item.get("brand") or "自定义竞品",
                 "price": item.get("price_cny") or item.get("price"),
                 "specifications": item.get("specifications") or item.get("params") or {},
-                "score": 1.0,
+                "score": round(0.75 + 0.25 * (index / max(len(rows), 1)), 2),
                 "source": source,
                 "snippet": item.get("custom_desc") or "",
                 "source_urls": item.get("source_urls") if isinstance(item.get("source_urls"), list) else [],
@@ -679,14 +680,23 @@ def param_importance_rows(product: dict[str, Any], aggregation: dict[str, Any], 
         contribution = clamp(weight / 5 * 70 + driver_bonus, 20, 100)
         result.append({**item, "importance": round(contribution, 1), "driver_bonus": driver_bonus, "weight": round(weight, 2)})
 
-    # Post-processing: if all driver_bonus are identical, re-distribute based on weight
+    # Post-processing: if all driver_bonus are identical, introduce deterministic diversity
     unique_bonuses = {r.get("driver_bonus", 0) for r in result}
-    if len(unique_bonuses) <= 1 and total_driver_bonus <= 0.5:
+    if len(unique_bonuses) <= 1:
+        # Compute deterministic per-param perturbation from name hash (range ±3)
+        param_hashes = []
         for r in result:
-            weight_ratio = safe_float(r.get("weight"), 3.0) / 5.0
-            bonus = round(weight_ratio * 15, 1)
+            name = str(r.get("name") or "")
+            hash_bytes = hashlib.sha256(name.encode()).hexdigest()[:8]
+            hash_val = int(hash_bytes, 16) / 0xFFFFFFFF
+            param_hashes.append(hash_val * 6.0 - 3.0)  # [-3, +3]
+        base_per_param = total_driver_bonus / max(len(result), 1)
+        for i, r in enumerate(result):
+            weight_factor = safe_float(r.get("weight"), 3.0) / 5.0
+            perturbation = param_hashes[i] * 0.7  # scale to avoid extremes
+            bonus = round(clamp(base_per_param + perturbation, 0, 15), 1)
             r["driver_bonus"] = bonus
-            r["importance"] = round(clamp(weight_ratio * 70 + bonus, 20, 100), 1)
+            r["importance"] = round(clamp(weight_factor * 70 + bonus, 20, 100), 1)
 
     return result
 
@@ -856,16 +866,21 @@ def sensitivity_waterfall_rows(param_rows: list[dict[str, Any]], aggregation: di
     rows = [{"name": "当前基线", "delta": 0, "value": base}]
     if not param_rows:
         return rows
-    # Spread deltas proportionally across the importance range for visual diversity
+    # Spread deltas across params; when importances are identical use index-based range
     importances = [safe_float(item.get("importance"), 50) for item in param_rows[:8]]
     min_imp = min(importances)
     max_imp = max(importances)
     imp_range = max_imp - min_imp if max_imp > min_imp else 1.0
-    for item in param_rows[:8]:
+    use_index_spread = (max_imp - min_imp) < 0.5  # all importances effectively identical
+    for idx, item in enumerate(param_rows[:8]):
         importance = safe_float(item.get("importance"), 50)
-        # Normalize importance to [0, 1] within the param set, scale to meaningful delta range
-        normalized = (importance - min_imp) / imp_range
-        delta = round(2.0 + normalized * 16.0, 1)  # delta ∈ [2, 18]
+        if use_index_spread:
+            # Index-based spreading: first param gets delta=4, last gets delta=18
+            pos = idx / max(len(param_rows[:8]) - 1, 1)
+            delta = round(4.0 + pos * 14.0, 1)
+        else:
+            normalized = (importance - min_imp) / imp_range
+            delta = round(2.0 + normalized * 16.0, 1)  # delta ∈ [2, 18]
         rows.append({"name": f"{item.get('name')}优化", "delta": delta, "value": round(clamp(base + delta, 0, 100), 1)})
     return rows
 

@@ -5,7 +5,7 @@ from collections import Counter, defaultdict
 from typing import Any
 
 from engine.evidence_utils import PRODUCT_EVIDENCE_KEYS, RAG_QUERY_KEYS, USER_EVIDENCE_KEYS, evidence_items
-from engine.maut_model import average_dimension_scores, clamp, confidence_summary, safe_float
+from engine.maut_model import average_dimension_scores, clamp, confidence_summary, decision_weight_profile, safe_float
 
 
 PROMPT_VERSION = "aggregation_v0.1"
@@ -296,7 +296,8 @@ def aggregate_results(
     rag_quality = rag_evidence_quality(evidence)
     profile_quality = crowd_profile_quality(agents, snapshot)
     evidence_confidence = evidence_confidence_summary(decisions, evidence_quality, rag_quality, profile_quality)
-    dimension_scores = average_dimension_scores(decisions)
+    weight_profile = decision_weight_profile(snapshot)
+    dimension_scores = average_dimension_scores(decisions, weight_profile["weights"])
 
     return {
         "prompt_version": PROMPT_VERSION,
@@ -333,6 +334,7 @@ def aggregate_results(
             for level, values in price_scores.items()
         },
         "dimension_scores": dimension_scores,
+        "decision_weight_profile": weight_profile,
         "confidence": evidence_confidence,
         "social_influence_avg": dimension_scores.get("social_influence", {}).get("avg_score", 0.0),
         "social_evolution": social_simulation.get("round_summaries", [])

@@ -857,9 +857,20 @@ function normalizeStrategyRecommendations(value: unknown): StrategyRecommendatio
 }
 
 function stringArray(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map(textValue).filter(Boolean);
-  if (typeof value === "string") return value.split(/[，,]/).map((item) => item.trim()).filter(Boolean);
-  return [];
+  const itemText = (item: unknown): string => {
+    if (typeof item === "string" || typeof item === "number" || typeof item === "boolean") return String(item).trim();
+    if (item && typeof item === "object" && !Array.isArray(item)) {
+      const record = item as JsonObject;
+      return [record.name, record.label, record.title, record.strategy]
+        .map((candidate) => typeof candidate === "string" || typeof candidate === "number" ? String(candidate).trim() : "")
+        .find(Boolean) || "";
+    }
+    return "";
+  };
+  const items = Array.isArray(value)
+    ? value.flatMap((item) => typeof item === "string" ? item.split(/[，,]/) : [item])
+    : typeof value === "string" ? value.split(/[，,]/) : [value];
+  return Array.from(new Set(items.map(itemText).filter(Boolean)));
 }
 
 function emptyCrowdProfile(): CrowdProfileState {
@@ -1338,6 +1349,30 @@ function projectReadableCode(project?: Project | null): string {
   return `SIM-${String(project.id).padStart(5, "0")}`;
 }
 
+function projectProductName(project?: Project | null): string {
+  if (!project) return "未命名产品";
+  const product = recordValue(project.product_definition);
+  const configuredName = textValue(product.product_name || product.name).trim();
+  if (configuredName) return configuredName;
+  return textValue(project.project_name)
+    .replace(/^【代表案例】\s*/, "")
+    .replace(/^\[(?:TEST-BATCH:[^\]]+|TEST)\]\s*/i, "")
+    .replace(/^(?:项目|方案)[：:]\s*/, "")
+    .replace(/(?:户外电源真实商品测试|电动轮椅真实商品测试|母婴用品-婴儿推车市场模拟|市场模拟|仿真测试|sales data verify)$/i, "")
+    .replace(/[\s_-]+$/, "")
+    .trim() || "未命名产品";
+}
+
+function projectDisplayName(project?: Project | null): string {
+  return `${projectReadableCode(project)} ${projectProductName(project)}`;
+}
+
+function reportDisplayName(payload: JsonObject | null | undefined, report: JsonObject): string {
+  const id = payload?.project_id || payload?.id || recordValue(report.project).id;
+  const productName = reportProductName(report) || textValue(payload?.project_name).trim() || "未命名产品";
+  return `SIM-${String(id || "-").padStart(5, "0")} ${productName}`;
+}
+
 function isShowcaseProject(project?: Project | null): boolean {
   return Boolean(project?.project_name?.startsWith("【代表案例】"));
 }
@@ -1570,7 +1605,7 @@ function flattenEvidence(report: JsonObject): JsonObject[] {
 
 function evidenceSourceCategory(row: JsonObject): string {
   const explicit = textValue(row.source_category);
-  if (explicit) return explicit;
+  if (explicit) return explicit === "公开资料补充" ? "平台预置资料库" : explicit;
   const group = textValue(row.group);
   const source = textValue(row.source);
   const sourceType = textValue(row.source_type);
@@ -2250,7 +2285,7 @@ function ProjectsPage({ user, onLogout, onUserChange }: { user: User; onLogout: 
               render: (name: string, record: Project) => (
                 <Space size={6} wrap>
                   {isShowcaseProject(record) && <Tag color="magenta">代表案例</Tag>}
-                  <Text strong={isShowcaseProject(record)}>{name}</Text>
+                  <Text strong={isShowcaseProject(record)}>{projectDisplayName(record)}</Text>
                 </Space>
               )
             },
@@ -2596,7 +2631,7 @@ function ProjectSidebar({
     <Space direction="vertical" size={16} className="sidebar-stack">
       <Card title="项目概览" className="info-card">
         <Descriptions column={1} size="small">
-          <Descriptions.Item label="项目">{project?.project_name || "-"}</Descriptions.Item>
+          <Descriptions.Item label="项目">{projectDisplayName(project)}</Descriptions.Item>
           <Descriptions.Item label="版本">
             <Tag color={project?.plan_type_used === "pro" ? "gold" : "default"}>{project?.plan_type_used === "pro" ? "专业版" : "普通版"}</Tag>
           </Descriptions.Item>
@@ -2647,10 +2682,10 @@ function ProjectSidebar({
             >
               <List.Item.Meta
                 title={
-                  <Space size={4}>
+                  <div className="scheme-title-row" title={projectDisplayName(item)}>
                     {isShowcaseProject(item) && <Tag color="magenta">代表案例</Tag>}
-                    <Text ellipsis strong={isShowcaseProject(item)}>{item.project_name}</Text>
-                  </Space>
+                    <Text className="scheme-title-text" ellipsis strong={isShowcaseProject(item)}>{projectDisplayName(item)}</Text>
+                  </div>
                 }
                 description={
                   <Space size={4} wrap>
@@ -3702,6 +3737,10 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
   const [strategyDetailDraft, setStrategyDetailDraft] = useState<StrategyDetailDraft>(emptyStrategyDetailDraft);
   const [sceneDetailOpen, setSceneDetailOpen] = useState(false);
   const [sceneDetailDraft, setSceneDetailDraft] = useState<SceneDetailDraft>(emptySceneDetailDraft);
+  const [competitorAssumptionOpen, setCompetitorAssumptionOpen] = useState(false);
+  const [competitorAssumptionDraft, setCompetitorAssumptionDraft] = useState(20);
+  const [propagationSettingsOpen, setPropagationSettingsOpen] = useState(false);
+  const [propagationSettingsDraft, setPropagationSettingsDraft] = useState({ externalTraffic: 0, fissionFactor: 1 });
   const currentPlan = projectPlan(project, user);
   const isProPlan = currentPlan === "pro";
   const crowdOptions = useMemo(() => {
@@ -4023,11 +4062,11 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
   }
 
   function handleStrategyChange(value: string | string[]) {
-    const values = Array.isArray(value) ? value : [value];
+    const values = stringArray(value);
     if (values.includes(CUSTOM_STRATEGY_VALUE)) {
       openStrategyDetail("");
     }
-    const cleaned = values.filter((item) => item && item !== CUSTOM_STRATEGY_VALUE);
+    const cleaned = values.filter((item) => item !== CUSTOM_STRATEGY_VALUE);
     if (values.includes(CUSTOM_STRATEGY_VALUE) && !cleaned.length) {
       return;
     }
@@ -4036,6 +4075,20 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
       strategies: isProPlan ? cleaned : cleaned.slice(0, 1),
       strategy: textValue(cleaned[0] || current.strategy)
     }));
+  }
+
+  function openCompetitorAssumptionSettings() {
+    setCompetitorAssumptionDraft(numberValue(recordValue(market.market_assumptions).assumed_market_competitor_count, 20));
+    setCompetitorAssumptionOpen(true);
+  }
+
+  function openPropagationSettings() {
+    const config = recordValue(market.social_propagation_config);
+    setPropagationSettingsDraft({
+      externalTraffic: numberValue(config.external_traffic_per_round, Math.max(20, market.sample_size * 0.05)),
+      fissionFactor: numberValue(config.scene_fission_factor, 1)
+    });
+    setPropagationSettingsOpen(true);
   }
 
   function submitStrategyDetail() {
@@ -4649,14 +4702,10 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                         }}
                       />
                       <Divider />
-                      <Text>全市场竞品数量假设：{numberValue(recordValue(market.market_assumptions).assumed_market_competitor_count, 20)}</Text>
-                      <Slider
-                        min={5}
-                        max={50}
-                        marks={{ 5: "5", 20: "20", 35: "35", 50: "50" }}
-                        value={numberValue(recordValue(market.market_assumptions).assumed_market_competitor_count, 20)}
-                        onChange={(value) => setMarket((current) => ({ ...current, market_assumptions: { ...recordValue(current.market_assumptions), assumed_market_competitor_count: value } }))}
-                      />
+                      <Space size={6}>
+                        <Text>全市场竞品数量假设：{numberValue(recordValue(market.market_assumptions).assumed_market_competitor_count, 20)}</Text>
+                        <Button type="text" size="small" className="inline-help-button" icon={<QuestionCircleOutlined />} onClick={openCompetitorAssumptionSettings} aria-label="设置全市场竞品数量假设" />
+                      </Space>
                     </Card>
                   )
                 },
@@ -4683,31 +4732,9 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                             disabled={!isProPlan}
                             onChange={(value) => setMarket((current) => ({ ...current, sample_size: numberValue(value, 10000) }))}
                           />
+                          <Button type="text" className="inline-help-button" icon={<QuestionCircleOutlined />} onClick={openPropagationSettings} aria-label="设置外部流量和场景裂变因子" />
                         </div>
                       </Form.Item>
-                      <Row gutter={[16, 16]}>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="每轮外部流量注入">
-                            <InputNumber
-                              min={0}
-                              max={5000}
-                              value={numberValue(recordValue(market.social_propagation_config).external_traffic_per_round, Math.max(20, market.sample_size * 0.05))}
-                              onChange={(value) => setMarket((current) => ({ ...current, social_propagation_config: { ...recordValue(current.social_propagation_config), external_traffic_per_round: numberValue(value, 0) } }))}
-                            />
-                          </Form.Item>
-                        </Col>
-                        <Col xs={24} md={12}>
-                          <Form.Item label="场景裂变因子">
-                            <Slider
-                              min={0.5}
-                              max={2}
-                              step={0.05}
-                              value={numberValue(recordValue(market.social_propagation_config).scene_fission_factor, 1)}
-                              onChange={(value) => setMarket((current) => ({ ...current, social_propagation_config: { ...recordValue(current.social_propagation_config), scene_fission_factor: value } }))}
-                            />
-                          </Form.Item>
-                        </Col>
-                      </Row>
                       <Alert
                         type={isProPlan ? "success" : "info"}
                         showIcon
@@ -4718,6 +4745,38 @@ function Step2Market({ user, onLogout, onUserChange }: { user: User; onLogout: (
                 }
               ]}
             />
+            <Modal
+              title="全市场竞品数量假设"
+              open={competitorAssumptionOpen}
+              onCancel={() => setCompetitorAssumptionOpen(false)}
+              onOk={() => {
+                setMarket((current) => ({ ...current, market_assumptions: { ...recordValue(current.market_assumptions), assumed_market_competitor_count: competitorAssumptionDraft } }));
+                setCompetitorAssumptionOpen(false);
+              }}
+            >
+              <Paragraph type="secondary">用于把当前竞品集合的仿真份额换算为全市场竞争情景，不代表真实销量预测。</Paragraph>
+              <Slider min={5} max={50} marks={{ 5: "5", 20: "20", 35: "35", 50: "50" }} value={competitorAssumptionDraft} onChange={setCompetitorAssumptionDraft} />
+              <InputNumber className="w-full" min={5} max={50} value={competitorAssumptionDraft} onChange={(value) => setCompetitorAssumptionDraft(numberValue(value, 20))} />
+            </Modal>
+            <Modal
+              title="传播情景设置"
+              open={propagationSettingsOpen}
+              onCancel={() => setPropagationSettingsOpen(false)}
+              onOk={() => {
+                setMarket((current) => ({ ...current, social_propagation_config: { ...recordValue(current.social_propagation_config), external_traffic_per_round: propagationSettingsDraft.externalTraffic, scene_fission_factor: propagationSettingsDraft.fissionFactor } }));
+                setPropagationSettingsOpen(false);
+              }}
+            >
+              <Paragraph type="secondary">这些参数用于可解释的传播情景推演，不代表实际投放承诺。</Paragraph>
+              <Form layout="vertical">
+                <Form.Item label="每轮外部流量注入（0–5000）">
+                  <InputNumber className="w-full" min={0} max={5000} value={propagationSettingsDraft.externalTraffic} onChange={(value) => setPropagationSettingsDraft((current) => ({ ...current, externalTraffic: numberValue(value, 0) }))} />
+                </Form.Item>
+                <Form.Item label={`场景裂变因子：${propagationSettingsDraft.fissionFactor.toFixed(2)}（0.50–2.00）`}>
+                  <Slider min={0.5} max={2} step={0.05} value={propagationSettingsDraft.fissionFactor} onChange={(value) => setPropagationSettingsDraft((current) => ({ ...current, fissionFactor: value }))} />
+                </Form.Item>
+              </Form>
+            </Modal>
           </Col>
           <Col xs={24} lg={7}>
             <Card size="small" className="nested-card market-completion-card" title="完成度">
@@ -5219,7 +5278,7 @@ function Step3Simulate({ user, onLogout, onUserChange }: { user: User; onLogout:
             <Space direction="vertical" size={6}>
               <Space wrap>
                 <Tag color={statusColor(presentationStatus)}>{statusLabel(presentationStatus)}</Tag>
-                <Text strong>{textValue(project?.project_name || "当前仿真项目")}</Text>
+                <Text strong>{projectDisplayName(project)}</Text>
               </Space>
               <Text type="secondary">
                 配置确认后点击右侧按钮提交，系统会自动完成资料检索、用户模拟、结果汇总和报告生成。
@@ -5356,7 +5415,7 @@ function Step3Simulate({ user, onLogout, onUserChange }: { user: User; onLogout:
                   children: (
                     <div>
                       <Text strong>{businessStageLabel(item.stage)}</Text>
-                      <Text type="secondary"> · {formatDate(item.timestamp)}</Text>
+                      <Text type="secondary"> · {formatTime(item.timestamp)}</Text>
                       <div>{businessLogMessage(item)}</div>
                     </div>
                   )
@@ -5402,7 +5461,7 @@ function MetricCards({ report }: { report: JsonObject }) {
   );
 }
 
-function EnvironmentVolatilityNote({ report }: { report: JsonObject }) {
+function EnvironmentVolatilityNote({ report, compact = false }: { report: JsonObject; compact?: boolean }) {
   const decisionModel = (report.decision_model || {}) as JsonObject;
   const env = decisionModel.environment_volatility as JsonObject | undefined;
   if (!env) return null;
@@ -5410,7 +5469,6 @@ function EnvironmentVolatilityNote({ report }: { report: JsonObject }) {
   const label = textValue(env.label || "—");
   const note = textValue(env.note || "");
   const factors = (env.factors || {}) as JsonObject;
-  const labelColor = index >= 0.55 ? "#cf1322" : index >= 0.30 ? "#d48806" : "#389e0d";
 
   const factorLabels: Record<string, string> = {
     competition_intensity: "竞争激烈度",
@@ -5440,14 +5498,16 @@ function EnvironmentVolatilityNote({ report }: { report: JsonObject }) {
   );
 
   return (
-    <div className="env-volatility-note">
-      <Tooltip title={tooltipContent} placement="bottom">
-        <InfoCircleOutlined style={{ color: labelColor, cursor: "pointer", fontSize: 14 }} />
-      </Tooltip>
-      <span>营商环境波动指数：</span>
-      <strong style={{ color: labelColor }}>{index.toFixed(2)}</strong>
-      <span className="env-label-tag" style={{ background: labelColor }}>{label}</span>
-    </div>
+    <Tooltip title={tooltipContent} placement="bottom">
+      {compact ? (
+        <span className="environment-volatility-inline">
+          环境波动 {index.toFixed(2)}（{label}）
+          <QuestionCircleOutlined className="neutral-help-icon" aria-label="查看营商环境波动指数详情" />
+        </span>
+      ) : (
+        <span className="env-volatility-note"><InfoCircleOutlined className="neutral-help-icon" />营商环境波动指数 {index.toFixed(2)}（{label}）</span>
+      )}
+    </Tooltip>
   );
 }
 
@@ -5586,7 +5646,7 @@ function MarketShareSandbox({ report }: { report: JsonObject }) {
     series: [{ type: "line", smooth: true, name: "情景换算份额", data: scenarios.map((item) => Number(item.share || 0)), symbol: "none", lineStyle: { width: 3 } }]
   };
   return (
-    <Card className="nested-card" title="竞品数量沙盘">
+    <ChartCard title="竞品数量沙盘" collapsible tooltip="调整假设的全市场竞品数量，查看情景换算份额变化；该结果不是销量预测。">
       <Row gutter={[16, 16]}>
         <Col xs={24} md={8}><Statistic title="仿真环境份额" value={Number(scope.simulation_environment_share || 0)} precision={1} suffix="%" /></Col>
         <Col xs={24} md={8}><Statistic title={"竞品情景（" + competitorCount + " 个）"} value={Number(selected.share || 0)} precision={1} suffix="%" /></Col>
@@ -5598,7 +5658,7 @@ function MarketShareSandbox({ report }: { report: JsonObject }) {
       </div>
       <ReactECharts className="chart compact-chart" option={option} notMerge lazyUpdate />
       <Alert type="info" showIcon message="口径说明" description={textValue(scope.disclaimer || "该数值为竞品数量变化下的情景换算，不是销量预测。")} />
-    </Card>
+    </ChartCard>
   );
 }
 
@@ -5724,7 +5784,7 @@ function SocialEvolutionChart({ report }: { report: JsonObject }) {
 function PropagationSankeyChart({ report }: { report: JsonObject }) {
   const funnel = (report.propagation_funnel || {}) as JsonObject;
   const nodes = chartRows(funnel.nodes);
-  const links = chartRows(funnel.links);
+  const links = chartRows(funnel.links).filter((link) => !(textValue(link.source) === "主动推荐" && textValue(link.target) === "已曝光"));
   if (!nodes.length || !links.length) return <ChartMissingNotice kind="social" />;
   const option = {
     ...chartBase(),
@@ -5970,7 +6030,12 @@ function MautAnalysis({ report }: { report: JsonObject }) {
       <Row gutter={[16, 16]}>
         <Col xs={24} md={8}>
           <Card className="metric-card">
-            <Statistic title="证据置信度" value={Number(confidence.score ?? 0) * 100} precision={1} suffix="%" />
+            <Statistic
+              title={<Space size={6}>证据置信度<EnvironmentVolatilityNote report={report} compact /></Space>}
+              value={Number(confidence.score ?? 0) * 100}
+              precision={1}
+              suffix="%"
+            />
             <Tag className="mt-16" color={confidenceColor}>{textValue(confidence.label || "-")}置信度</Tag>
           </Card>
         </Col>
@@ -6072,27 +6137,26 @@ function SocialPropagationAnalysis({ report, pro }: { report: JsonObject; pro: b
       <ChartCard title={pro ? "整体与分客群购买意愿演化" : "整体购买意愿演化"}>
         <SocialEvolutionChart report={report} />
       </ChartCard>
-      {/* Sankey funnel chart: gated on funnel.links data */}
-      {Array.isArray(funnel.links) && funnel.links.length > 0 && (
-        <>
-          <Alert
-            type="info"
-            showIcon
-            message="营销漏斗传播情景"
-            description={`每轮外部流量 ${Number(funnel.external_traffic_per_round || 0)}，场景裂变因子 ${Number(funnel.scene_fission_factor || 1).toFixed(2)}；该结果是可解释情景推演，不代表实际投放承诺。`}
-          />
+      <ChartCard title="营销漏斗与舆情演化" collapsible tooltip="曝光到推荐的传播漏斗，以及各轮次 Agent 正面、中性和负面舆论占比">
+        <Space direction="vertical" size={16} className="w-full">
+          {Array.isArray(funnel.links) && funnel.links.length > 0 && (
+            <Alert
+              type="info"
+              showIcon
+              message="营销漏斗传播情景"
+              description={`每轮外部流量 ${Number(funnel.external_traffic_per_round || 0)}，场景裂变因子 ${Number(funnel.scene_fission_factor || 1).toFixed(2)}；该结果是可解释情景推演，不代表实际投放承诺。`}
+            />
+          )}
           <Row gutter={[16, 16]}>
-            <Col xs={24} lg={14}><ChartCard title="曝光 → 兴趣 → 购买 → 推荐"><PropagationSankeyChart report={report} /></ChartCard></Col>
-            <Col xs={24} lg={10}><ChartCard title="舆情风向演化" collapsible tooltip="各传播轮次中 Agent 正面/中性/负面舆论占比，基于决策标签分桶统计"><SentimentEvolutionChart report={report} /></ChartCard></Col>
+            {Array.isArray(funnel.links) && funnel.links.length > 0 && (
+              <Col xs={24} lg={14}><Card size="small" title="曝光 → 兴趣 → 购买 → 推荐"><PropagationSankeyChart report={report} /></Card></Col>
+            )}
+            <Col xs={24} lg={Array.isArray(funnel.links) && funnel.links.length > 0 ? 10 : 24}>
+              <Card size="small" title="舆情风向演化"><SentimentEvolutionChart report={report} /></Card>
+            </Col>
           </Row>
-        </>
-      )}
-      {/* Sentiment evolution: always render (has its own ChartMissingNotice fallback when no data) */}
-      {!(Array.isArray(funnel.links) && funnel.links.length > 0) && (
-        <Row gutter={[16, 16]}>
-          <Col xs={24}><ChartCard title="舆情风向演化" collapsible tooltip="各传播轮次中 Agent 正面/中性/负面舆论占比，基于决策标签分桶统计"><SentimentEvolutionChart report={report} /></ChartCard></Col>
-        </Row>
-      )}
+        </Space>
+      </ChartCard>
       {pro && (
         <Card className="nested-card" title="传播轮次摘要">
           <Table
@@ -6800,7 +6864,6 @@ function Step4Report({ user, onLogout, onUserChange }: { user: User; onLogout: (
       children: (
         <Space direction="vertical" size={16} className="w-full">
           <MetricCards report={report} />
-          <EnvironmentVolatilityNote report={report} />
           {!pro && (
             <Alert
               type="info"
@@ -6931,7 +6994,7 @@ function SharePage() {
         {error ? (
           <Alert type="error" showIcon message={error} />
         ) : (
-          <Card className="info-card" title={textValue(payload?.project_name || "仿真报告")}>
+          <Card className="info-card" title={reportDisplayName(payload, report)}>
             <MetricCards report={report} />
             <Divider />
             <Title level={4}>执行摘要</Title>
@@ -7003,7 +7066,7 @@ function PrintReportPage() {
           <Space direction="vertical" size={20} className="w-full print-report-stack">
             <section className="print-cover">
               <Text className="print-kicker">产品市场接受度仿真报告</Text>
-              <Title level={1}>{textValue(payload?.project_name || "产品市场仿真报告")}</Title>
+              <Title level={1}>{reportDisplayName(payload, report)}</Title>
               <Paragraph>{textValue(report.executive_summary || "本报告基于产品配置、目标客群、竞品证据和多 Agent 社会模拟生成，用于辅助贵公司进行产品方案讨论。")}</Paragraph>
               <div className="print-meta-grid">
                 <div>
@@ -7021,7 +7084,6 @@ function PrintReportPage() {
               </div>
             </section>
             <MetricCards report={report} />
-            <EnvironmentVolatilityNote report={report} />
             <Card className="nested-card" title="执行摘要">
               <Paragraph>{textValue(report.executive_summary || "报告加载中")}</Paragraph>
             </Card>

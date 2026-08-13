@@ -1,0 +1,22 @@
+[
+  {
+    "name": "日常通勤",
+    "description": "高频日常移动、办公、外出场景。",
+    "default_weight": 1.0
+  },
+  {
+    "name": "家庭使用",
+    "description": "多人共享、稳定耐用、售后敏感的家庭场景。",
+    "default_weight": 1.0
+  },
+  {
+    "name": "户外/旅行",
+    "description": "移动、便携、续航、防护能力要求更高的场景。",
+    "default_weight": 0.8
+  },
+  {
+    "name": "专业高频使用",
+    "description": "对性能、可靠性、参数上限更敏感的专业场景。",
+    "default_weight": 0.8
+  }
+]

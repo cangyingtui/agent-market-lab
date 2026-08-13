@@ -1,0 +1,17 @@
+[
+  {
+    "name": "性价比策略",
+    "description": "突出价格优势、核心功能覆盖和低决策门槛。",
+    "default_params": {"discount_level": "medium", "message": "高性价比", "channel_focus": ["电商", "内容种草"]}
+  },
+  {
+    "name": "高端品质策略",
+    "description": "突出品牌、材质、性能、服务和长期价值。",
+    "default_params": {"discount_level": "low", "message": "品质升级", "channel_focus": ["品牌旗舰店", "专业测评"]}
+  },
+  {
+    "name": "场景解决方案策略",
+    "description": "围绕具体使用场景包装卖点，降低用户理解成本。",
+    "default_params": {"discount_level": "medium", "message": "场景适配", "channel_focus": ["短视频", "搜索广告"]}
+  }
+]

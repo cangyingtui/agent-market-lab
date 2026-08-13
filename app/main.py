@@ -1,23 +1,28 @@
 from __future__ import annotations
 
+import base64
+import binascii
 import hashlib
 import json
+import logging
 from datetime import datetime, timedelta
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Query, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
-from sqlalchemy import delete, func, inspect, or_, select, text
+from sqlalchemy import case as sql_case, delete, func, inspect, or_, select, text
 from sqlalchemy.orm import Session, defer
 
 from app.assistant_service import build_assistant_response
 from app.config import settings
 from app.crowd_profile import canonicalize_market_crowds, crowd_profile_text, validate_crowd_segments
-from app.database import engine, get_db
+from app.custom_competitor_backfill import enqueue_project_backfill
+from app.database import SessionLocal, engine, get_db
 from app.export_service import (
     build_report_payload,
     check_pdf_render_prerequisites,
@@ -28,6 +33,7 @@ from app.export_service import (
     write_export_file,
 )
 from app.models import (
+    CustomCompetitorBackfillJob,
     DistillCheckLog,
     ExportTask,
     MarketCrowdTemplate,
@@ -45,6 +51,7 @@ from app.models import (
     UpgradeLog,
     User,
 )
+from app.price_enrichment import enqueue_product_price_enrichment
 from app.redis_client import get_redis_client, redis_json_get, redis_json_set
 from app.response import http_exception_handler, success_payload, validation_exception_handler
 from app.runtime_status import (
@@ -59,6 +66,7 @@ from app.runtime_status import (
 )
 from app.schemas import (
     AssistantChatRequest,
+    AvatarUploadRequest,
     CreateSimulationRequest,
     DistillDebugRequest,
     ExportRequest,
@@ -72,6 +80,7 @@ from app.schemas import (
     UpdateSimulationDraftRequest,
     UpdateUserProfileRequest,
     UpgradeUserRequest,
+    WhatIfRequest,
 )
 from app.security import create_access_token, get_current_user, hash_password, verify_password
 from app.share_tokens import create_share_token, hash_share_token
@@ -79,13 +88,18 @@ from app.task_keys import cancel_key, export_progress_key, progress_key, project
 from app.time_utils import utc_now_iso, utc_now_naive
 from engine.distill_client import debug_distill_check as run_debug_distill_check
 from engine.distill_client import run_distill_checks_if_enabled
+from engine.chart_data import build_chart_data
 from engine.social_network import representative_agent_count
+from engine.maut_model import MAUT_WEIGHTS, build_decision_model_summary, decision_weight_profile, normalize_weights, safe_float as maut_safe_float, weighted_purchase_intent
+from engine.commercial_model import MODEL_VERSION as COMMERCIAL_MODEL_VERSION
+from engine.propagation_funnel import build_propagation_funnel
 from knowledge_model.product_evidence import search_product_evidence
 from knowledge_model.rag_service import get_rag_service
 from scripts.product_ui_schema_loader import schema_for_field
 
 
 app = FastAPI(title=settings.app_name)
+logger = logging.getLogger(__name__)
 app.add_exception_handler(HTTPException, http_exception_handler)
 app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
@@ -246,7 +260,7 @@ def user_to_dict(user: User) -> dict[str, Any]:
         "nickname": user.full_name or user.username,
         "email": user.email,
         "full_name": user.full_name,
-        "avatar_url": user.avatar_url,
+        "avatar_url": user.avatar_url or "/api/user/avatar/default",
         "plan_type": user.plan_type,
         "version": user.plan_type,
         "is_demo_account": user.username in DEMO_ACCOUNT_USERNAMES,
@@ -405,6 +419,39 @@ def smooth_active_progress(project: SimulationProject, progress: dict[str, Any])
     progress["display_progress_mode"] = "time_smoothed"
 
 
+def promote_report_waiting_if_ready(db: Session, project: SimulationProject) -> bool:
+    if project.status != REPORT_WAITING_STATUS or not project.result_data:
+        return False
+    if report_wait_remaining_seconds(project.result_data) > 0:
+        return False
+    project.status = "completed"
+    project.completed_at = project.completed_at or utc_now_naive()
+    project.error_code = None
+    project.error_reason = None
+    db.add(project)
+    db.commit()
+    db.refresh(project)
+    progress = {
+        "task_id": project.task_id,
+        "project_id": project.id,
+        "status": "completed",
+        "percent": 100,
+        "stage": "completed",
+        "message": "任务已完成",
+        "remaining_seconds": 0,
+        "report_waiting": False,
+        "completed_at": format_utc_iso(project.completed_at) if project.completed_at else utc_now_iso(),
+        "updated_at": utc_now_iso(),
+    }
+    try:
+        if project.task_id:
+            redis_json_set(progress_key(project.task_id), progress, ex=settings.redis_progress_expire_seconds)
+        redis_json_set(project_progress_key(project.id), progress, ex=settings.redis_progress_expire_seconds)
+    except Exception:
+        pass
+    return True
+
+
 def build_progress_payload(project: SimulationProject, raw_progress: dict[str, Any] | None) -> dict[str, Any]:
     progress = dict(raw_progress or {})
     if not progress:
@@ -449,6 +496,33 @@ def build_progress_payload(project: SimulationProject, raw_progress: dict[str, A
                 **wait_extra,
             }
         )
+    elif str(progress.get("status") or "") == "completed" and project.status != "completed":
+        status = project.status or "running"
+        if status in {"draft", "submitted"}:
+            progress.update(
+                {
+                    "task_id": project.task_id,
+                    "project_id": project.id,
+                    "status": status,
+                    "percent": 0,
+                    "stage": status,
+                    "message": "配置已修改，请重新提交仿真",
+                    "remaining_seconds": None,
+                    "report_waiting": False,
+                }
+            )
+        else:
+            progress.update(
+                {
+                    "task_id": project.task_id,
+                    "project_id": project.id,
+                    "status": "running",
+                    "percent": min(98, int(_number_value(progress.get("percent"), 98))),
+                    "stage": "assemble_report",
+                    "message": "报告整理中，请稍后",
+                    "report_waiting": True,
+                }
+            )
     current_stage = normalize_stage(progress.get("stage"))
     status_text = str(progress.get("status") or project.status)
     flow_keys = [item["key"] for item in STAGE_FLOW]
@@ -720,6 +794,9 @@ def build_rag_search_text(product_definition: dict[str, Any], market_config: dic
         value = market_config.get(key)
         if value:
             parts.append(str(value))
+    scenes = market_config.get("scenes")
+    if isinstance(scenes, list):
+        parts.extend(str(item) for item in scenes if item)
     strategy_text = market_strategy_text(market_config)
     if strategy_text:
         parts.append(strategy_text)
@@ -736,7 +813,8 @@ def build_rag_queries(product_definition: dict[str, Any], market_config: dict[st
     brand = product_definition.get("brand") or ""
     target = market_config.get("target_crowd") or market_config.get("crowd") or ""
     strategy = market_strategy_text(market_config)
-    scene = market_config.get("scene") or ""
+    scenes = market_config.get("scenes")
+    scene = "；".join(str(item) for item in scenes if item) if isinstance(scenes, list) else (market_config.get("scene") or "")
     profile_text = crowd_profile_text(market_config)
     return {
         "product_query": f"{legacy_text} {brand} {product_name} 功能 参数 价格".strip()[:2000],
@@ -766,6 +844,14 @@ def make_config_snapshot(
         "representative_max": settings.social_representative_max,
     }
     social_network["representative_agent_count"] = representative_agent_count(sample_size, social_network)
+    market_assumptions = market_config.get("market_assumptions") if isinstance(market_config.get("market_assumptions"), dict) else {}
+    market_assumptions = {
+        "assumed_market_competitor_count": max(5, min(50, int(positive_int(market_assumptions.get("assumed_market_competitor_count")) or 20))),
+        "market_anchor": market_assumptions.get("market_anchor") if isinstance(market_assumptions.get("market_anchor"), dict) else None,
+    }
+    configured_profile = market_config.get("decision_weight_profile") if isinstance(market_config.get("decision_weight_profile"), dict) else {}
+    weight_profile = decision_weight_profile({"decision_weight_profile": configured_profile})
+    propagation_config = market_config.get("social_propagation_config") if isinstance(market_config.get("social_propagation_config"), dict) else {}
     simulation_params = {
         "simulation_version": "v0.2",
         "sample_size": sample_size,
@@ -786,6 +872,10 @@ def make_config_snapshot(
         "plan_type_used": project.plan_type_used or "basic",
         "product_definition": product_definition,
         "market_config": market_config,
+        "market_assumptions": market_assumptions,
+        "decision_weight_profile": weight_profile,
+        "social_propagation_config": propagation_config,
+        "commercial_model_version": COMMERCIAL_MODEL_VERSION,
         "simulation_params": simulation_params,
         "rag_queries": rag_queries,
     }
@@ -914,6 +1004,21 @@ def validate_step1_product_definition(product_definition: dict[str, Any]) -> Non
             status_code=422,
             detail={"code": "STEP1_REQUIRED_FIELD_MISSING", "message": "请先选择或填写产品小品类", "data": {"field": "subcategory"}},
         )
+    raw_price = product_definition.get("price_cny") or product_definition.get("price") or product_definition.get("reference_price")
+    try:
+        price = float(str(raw_price).replace(",", "").strip()) if raw_price is not None else 0
+    except (TypeError, ValueError):
+        price = 0
+    if price <= 0:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "STEP1_REQUIRED_FIELD_MISSING",
+                "message": "请填写产品价格，价格需为确定数字，例如 3999",
+                "data": {"field": "price_cny"},
+            },
+        )
+    product_definition["price_cny"] = price
 
 
 def competitor_count(market_config: dict[str, Any]) -> int:
@@ -971,8 +1076,41 @@ def _strategy_name(value: Any) -> str:
     return str(value).strip()
 
 
+def _scene_name(value: Any) -> str:
+    if isinstance(value, dict):
+        for key in ("name", "scene", "title", "label"):
+            raw = value.get(key)
+            if raw:
+                return str(raw).strip()
+        return ""
+    if value is None:
+        return ""
+    return str(value).strip()
+
+
 def canonicalize_market_config(market_config: dict[str, Any] | None) -> dict[str, Any]:
     market = canonicalize_market_crowds(normalize_market_competitors(market_config))
+    raw_scenes = market.get("scenes")
+    scenes: list[str] = []
+    if isinstance(raw_scenes, list):
+        for item in raw_scenes:
+            name = _scene_name(item)
+            if name and name not in scenes:
+                scenes.append(name)
+    else:
+        name = _scene_name(market.get("scene") or market.get("basic_selected_scene"))
+        if name:
+            scenes.append(name)
+    if scenes:
+        market["scenes"] = scenes
+        market["scene"] = scenes[0]
+        scene_details = _dict_value(market.get("scene_details"))
+        legacy_scene_detail = _dict_value(market.get("scene_detail"))
+        if legacy_scene_detail and scenes[0] not in scene_details:
+            scene_details[scenes[0]] = legacy_scene_detail
+        if scene_details:
+            market["scene_details"] = scene_details
+            market["scene_detail"] = _dict_value(scene_details.get(scenes[0])) or legacy_scene_detail
     raw_strategies = market.get("strategies")
     strategies: list[Any] = []
     if isinstance(raw_strategies, list):
@@ -994,6 +1132,284 @@ def canonicalize_market_config(market_config: dict[str, Any] | None) -> dict[str
         market["strategies"] = strategies
         market["strategy"] = _strategy_name(strategies[0])
     return market
+
+
+def _dict_value(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _list_value(value: Any) -> list[Any]:
+    return value if isinstance(value, list) else []
+
+
+def _has_report_value(value: Any) -> bool:
+    if isinstance(value, list):
+        return len(value) > 0
+    if isinstance(value, dict):
+        return len(value) > 0
+    return value not in (None, "")
+
+
+def _number_value(value: Any, default: float = 0.0) -> float:
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.replace(",", "").strip())
+        except ValueError:
+            return default
+    return default
+
+
+def _positive_number_value(value: Any) -> float | None:
+    parsed = _number_value(value, -1)
+    return parsed if parsed > 0 else None
+
+
+def _project_price_cny_for_report(
+    project: SimulationProject,
+    result_data: dict[str, Any],
+    product_definition: dict[str, Any],
+) -> float | None:
+    snapshot_product = _dict_value(_dict_value(project.config_snapshot).get("product_definition"))
+    result_product = _dict_value(result_data.get("product_definition")) or _dict_value(result_data.get("product"))
+    project_product = _dict_value(project.product_definition)
+    for value in (
+        snapshot_product.get("price_cny"),
+        product_definition.get("price_cny"),
+        result_product.get("price_cny"),
+        project_product.get("price_cny"),
+        snapshot_product.get("price"),
+        result_product.get("price"),
+        project_product.get("price"),
+    ):
+        parsed = _positive_number_value(value)
+        if parsed is not None:
+            return parsed
+    return None
+
+
+def _snapshot_for_report_repair(project: SimulationProject, result_data: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    snapshot = _dict_value(project.config_snapshot)
+    if snapshot.get("product_definition") or snapshot.get("market_config"):
+        return snapshot, "config_snapshot"
+
+    product_definition = (
+        _dict_value(result_data.get("product_definition"))
+        or _dict_value(result_data.get("product"))
+        or _dict_value(project.product_definition)
+    )
+    market_config = (
+        _dict_value(result_data.get("market_config"))
+        or _dict_value(result_data.get("market"))
+        or _dict_value(project.market_config)
+    )
+    return (
+        {
+            "snapshot_id": result_data.get("snapshot_id") or project.snapshot_hash or f"project_{project.id}",
+            "snapshot_hash": result_data.get("snapshot_hash") or project.snapshot_hash,
+            "product_definition": product_definition,
+            "market_config": canonicalize_market_config(market_config),
+        },
+        "project_current_fallback",
+    )
+
+
+def _evidence_for_report_repair(result_data: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    for key in ("rag_evidence", "final_rag_evidence", "evidence"):
+        value = result_data.get(key)
+        if isinstance(value, dict):
+            return {
+                str(item_key): [item for item in _list_value(items) if isinstance(item, dict)]
+                for item_key, items in value.items()
+            }
+    rows = [item for item in _list_value(result_data.get("evidence_used")) if isinstance(item, dict)]
+    return {"evidence_used": rows} if rows else {}
+
+
+def _segments_for_report_repair(market_config: dict[str, Any]) -> list[dict[str, Any]]:
+    market = canonicalize_market_crowds(market_config)
+    raw_segments = _list_value(market.get("crowd_segments"))
+    rows: list[dict[str, Any]] = []
+    for index, item in enumerate(raw_segments, 1):
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or item.get("segment") or "").strip()
+        if not name:
+            continue
+        ratio = _number_value(item.get("ratio"), 0)
+        profile = _dict_value(item.get("profile")) or _dict_value(item.get("crowd_profile"))
+        rows.append(
+            {
+                "name": name,
+                "ratio": ratio if ratio > 0 else round(100 / max(1, len(raw_segments)), 1),
+                "profile": profile,
+                "crowd_profile": profile,
+                "is_custom": bool(item.get("is_custom")),
+            }
+        )
+    if rows:
+        return rows
+    fallback_name = str(market.get("target_crowd") or market.get("basic_target_crowd") or "").strip()
+    if fallback_name:
+        profile = _dict_value(market.get("crowd_profile"))
+        return [{"name": fallback_name, "ratio": 100, "profile": profile, "crowd_profile": profile, "is_custom": False}]
+    return []
+
+
+def _aggregation_for_report_repair(
+    result_data: dict[str, Any],
+    market_config: dict[str, Any],
+    chart_data: dict[str, Any],
+) -> dict[str, Any]:
+    aggregation = dict(_dict_value(result_data.get("aggregation")))
+    if "purchase_intent_avg" not in aggregation:
+        values: list[float] = []
+        for item in _list_value(result_data.get("purchase_decisions")):
+            if not isinstance(item, dict):
+                continue
+            raw = item.get("purchase_intent") or item.get("purchase_intent_score") or item.get("intent") or item.get("score")
+            parsed = _number_value(raw, -1)
+            if parsed >= 0:
+                values.append(parsed / 100 if parsed > 1 else parsed)
+        if values:
+            aggregation["purchase_intent_avg"] = sum(values) / len(values)
+        else:
+            overview = _dict_value(chart_data.get("overview_metrics"))
+            aggregation["purchase_intent_avg"] = _number_value(overview.get("purchase_intent_index"), 55) / 100
+
+    configured_segments = _segments_for_report_repair(market_config)
+    existing_summary = aggregation.get("segment_summary")
+    if not isinstance(existing_summary, dict) or len(existing_summary) < len(configured_segments):
+        avg = max(0.0, min(1.0, _number_value(aggregation.get("purchase_intent_avg"), 0.55)))
+        segment_summary: dict[str, Any] = {}
+        for segment in configured_segments:
+            ratio = _number_value(segment.get("ratio"), 100)
+            segment_summary[str(segment.get("name") or "目标人群")] = {
+                "avg_purchase_intent": avg,
+                "count": 0,
+                "ratio": ratio,
+                "weighted_contribution": avg * ratio / 100,
+            }
+        if segment_summary:
+            aggregation["segment_summary"] = segment_summary
+
+    evidence_quality = _dict_value(aggregation.get("evidence_quality"))
+    if "price_coverage_pct" not in evidence_quality:
+        competitors = _list_value(market_config.get("competitors"))
+        named = [item for item in competitors if isinstance(item, dict) and _competitor_name(item)]
+        priced = [
+            item
+            for item in named
+            if _number_value(item.get("price") or item.get("price_cny"), -1) > 0
+        ]
+        evidence_quality["price_coverage_pct"] = round(len(priced) / max(1, len(named)) * 100, 1) if named else 0
+    aggregation["evidence_quality"] = evidence_quality
+    return aggregation
+
+
+def repair_project_report_data(db: Session, project: SimulationProject) -> bool:
+    result_data = _dict_value(project.result_data)
+    if not result_data:
+        return False
+
+    chart_data = dict(_dict_value(result_data.get("chart_data")))
+    snapshot, source = _snapshot_for_report_repair(project, result_data)
+    product_definition = _dict_value(snapshot.get("product_definition"))
+    market_config = canonicalize_market_config(_dict_value(snapshot.get("market_config")))
+    product_price = _project_price_cny_for_report(project, result_data, product_definition)
+    if product_price is not None:
+        product_definition = {**product_definition, "price_cny": product_price}
+    snapshot["product_definition"] = product_definition
+    snapshot["market_config"] = market_config
+    evidence = _evidence_for_report_repair(result_data)
+    aggregation = _aggregation_for_report_repair(result_data, market_config, chart_data)
+    agents = [item for item in _list_value(result_data.get("agent_samples")) if isinstance(item, dict)]
+    decisions = [item for item in _list_value(result_data.get("purchase_decisions")) if isinstance(item, dict)]
+    plan_type = "pro" if str(project.plan_type_used or result_data.get("plan_type_used") or chart_data.get("plan_type")) == "pro" else "basic"
+
+    generated = build_chart_data(snapshot, evidence, agents, decisions, aggregation, plan_type=plan_type)
+    changed = False
+    for key, value in generated.items():
+        if _has_report_value(value) and not _has_report_value(chart_data.get(key)):
+            chart_data[key] = value
+            changed = True
+
+    for key in (
+        "market_share_scope",
+        "market_share_scenarios",
+        "data_gaps",
+        "commercial_model_version",
+        "strategy_economics",
+        "differentiation_audit",
+        "simulation_boundaries",
+    ):
+        if _has_report_value(generated.get(key)) and not _has_report_value(result_data.get(key)):
+            result_data[key] = generated[key]
+            changed = True
+    if decisions and not _has_report_value(result_data.get("channel_scenarios")):
+        decision_summary = build_decision_model_summary(decisions, snapshot)
+        result_data["channel_scenarios"] = decision_summary.get("channel_scenarios", [])
+        result_data.setdefault("decision_model", decision_summary)
+        changed = True
+    if decisions and not _has_report_value(result_data.get("propagation_funnel")):
+        social = _dict_value(result_data.get("social_simulation"))
+        result_data["propagation_funnel"] = build_propagation_funnel(snapshot, agents, decisions, social)
+        changed = True
+
+    segments = _segments_for_report_repair(market_config)
+    if segments and not _has_report_value(result_data.get("crowd_segments")):
+        result_data["crowd_segments"] = segments
+        changed = True
+    if segments and not _has_report_value(result_data.get("target_segments")):
+        result_data["target_segments"] = [
+            {
+                "name": item["name"],
+                "ratio": item.get("ratio", 100),
+                "crowd_profile": item.get("crowd_profile") or item.get("profile") or {},
+                "insight": f"{item['name']} 占比 {item.get('ratio', 100)}%，作为本轮仿真的目标客群之一。",
+            }
+            for item in segments
+        ]
+        changed = True
+
+    if product_definition and not _has_report_value(result_data.get("product_definition")):
+        result_data["product_definition"] = product_definition
+        changed = True
+    elif product_price is not None:
+        result_product = dict(_dict_value(result_data.get("product_definition")))
+        if _positive_number_value(result_product.get("price_cny")) is None:
+            result_product.update(product_definition)
+            result_product["price_cny"] = product_price
+            result_data["product_definition"] = result_product
+            changed = True
+    if product_price is not None:
+        pricing = dict(_dict_value(result_data.get("pricing_analysis")))
+        if _positive_number_value(pricing.get("reference_price")) is None:
+            pricing["reference_price"] = product_price
+            result_data["pricing_analysis"] = pricing
+            changed = True
+    if market_config and not _has_report_value(result_data.get("market_config")):
+        result_data["market_config"] = market_config
+        changed = True
+    if aggregation and aggregation != result_data.get("aggregation"):
+        result_data["aggregation"] = aggregation
+        changed = True
+    if chart_data != result_data.get("chart_data"):
+        result_data["chart_data"] = chart_data
+        changed = True
+
+    if changed:
+        runtime = _dict_value(result_data.get("_runtime"))
+        repairs = _list_value(runtime.get("chart_repairs"))
+        repairs.append({"source": source, "repaired_at": utc_now_iso()})
+        runtime["chart_repairs"] = repairs[-5:]
+        result_data["_runtime"] = runtime
+        project.result_data = result_data
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+    return changed
 
 
 def market_strategy_text(market_config: dict[str, Any] | None) -> str:
@@ -1053,6 +1469,10 @@ def normalize_basic_config(
         market["strategies"] = market["strategies"][:1]
         if market["strategies"]:
             market["strategy"] = _strategy_name(market["strategies"][0])
+    if isinstance(market.get("scenes"), list):
+        market["scenes"] = market["scenes"][:1]
+        if market["scenes"]:
+            market["scene"] = _scene_name(market["scenes"][0])
     return product, market
 
 
@@ -1103,6 +1523,15 @@ def health(db: DbSession) -> dict[str, Any]:
         "model_version": settings.distill_model_version,
         "batch_size": settings.distill_batch_size,
     }
+    checks["public_evidence"] = {
+        "enabled": settings.public_evidence_enabled,
+        "provider": settings.public_evidence_provider,
+        "api_base_configured": bool(settings.public_evidence_api_base),
+        "api_key_configured": bool(settings.public_evidence_api_key or settings.price_enrichment_api_key or settings.embedding_api_key),
+        "model": settings.public_evidence_model,
+        "basic_query_limit": settings.public_evidence_basic_query_limit,
+        "pro_query_limit": settings.public_evidence_pro_query_limit,
+    }
     ok = checks["mysql"]["ok"] and checks["redis"]["ok"] and checks["faiss"]["ok"]
     return {
         "ok": ok,
@@ -1143,6 +1572,7 @@ def list_category_fields(category_id: int, db: DbSession) -> dict[str, Any]:
 
 @app.get("/api/products")
 def list_products(
+    background_tasks: BackgroundTasks,
     db: DbSession,
     category_id: int | None = None,
     category: str | None = None,
@@ -1179,11 +1609,22 @@ def list_products(
         .offset(offset)
         .limit(limit)
     )
+    rows = list(db.scalars(stmt))
+    missing_price_ids = [
+        row.id
+        for row in rows
+        if row.price_cny is None and (row.product_name or row.confirmed_sku)
+    ]
+    queued_count = enqueue_product_price_enrichment(background_tasks, missing_price_ids)
     return {
         "total": int(total),
         "limit": limit,
         "offset": offset,
-        "items": [product_to_dict(row) for row in db.scalars(stmt)],
+        "items": [product_to_dict(row) for row in rows],
+        "price_enrichment": {
+            "enabled": settings.price_enrichment_enabled,
+            "queued": queued_count,
+        },
     }
 
 
@@ -1237,14 +1678,60 @@ def list_market_templates(db: DbSession) -> dict[str, Any]:
     }
 
 
+def assistant_route_fallback(payload: AssistantChatRequest, reason: str | None = None) -> dict[str, Any]:
+    message = (payload.message or "").strip()
+    reply = (
+        "助手已切换为本地说明，页面填写和保存不受影响。"
+        "您可以继续填写；如果是字段填写问题，请优先按页面必填提示完成产品价格、目标客群、场景、策略和竞品信息。"
+    )
+    if any(keyword in message.lower() for keyword in ("roi", "投入产出", "回报")):
+        reply = (
+            "ROI 可以理解为本次策略的投入产出参考值。数值越高，说明在当前产品、人群和价格配置下，"
+            "该策略更可能带来有效转化。建议您结合策略触达渠道、预算强度和执行动作一起判断。"
+        )
+    elif "价格" in message:
+        reply = (
+            "价格请填写贵公司主推热销款产品的实际售价，仅填写数字，例如 3999。"
+            "系统会用这个确定单价计算购买力、价格敏感曲线和竞品价格覆盖情况。"
+        )
+    elif "竞品" in message:
+        reply = (
+            "竞品用于判断贵公司产品相对同类产品的价格、卖点和参数位置。"
+            "建议至少填写或选择 1 个有名称的竞品；价格缺失不影响保存，系统会优先用数据库和公开资料补全。"
+        )
+    elif any(keyword in message for keyword in ("产品怎么样", "我们的产品", "这个产品", "好不好", "产品建议", "优缺点", "优势", "短板")):
+        reply = (
+            "贵公司的产品建议从人群匹配、价格接受度、核心参数和竞品差异四个角度判断。"
+            "如果 Step1 的价格和核心参数、Step2 的客群、场景、策略和竞品都已填写，报告会结合这些信息给出购买意愿、价格敏感和策略 ROI。"
+            "建议您优先查看 Step4 的总览、竞品分析和策略分析，不要只用单一指标判断产品好坏。"
+        )
+    elif "没有图" in message or "暂无数据" in message or "缺" in message:
+        reply = (
+            "报告图表通常依赖 Step1 的价格和核心参数、Step2 的人群比例、场景、策略和竞品。"
+            "如果这些都已填写但图表仍缺失，系统会尝试自动修复报告数据；竞品资料覆盖较少时可联系客服 18960333566 补充资料。"
+        )
+    if reason:
+        logger.warning("assistant_route_fallback", extra={"reason": reason, "project_id": payload.project_id})
+    return {
+        "reply": reply,
+        "quick_replies": ["价格应该怎么填？", "竞品怎么选？", "ROI 是什么？"],
+        "field_cards": [],
+        "source": "local_fallback",
+    }
+
+
 @app.post("/api/assistant/chat")
 def assistant_chat(
     payload: AssistantChatRequest,
     db: DbSession,
     current_user: CurrentUser,
 ) -> dict[str, Any]:
-    project = get_owned_project(db, current_user, payload.project_id)
-    return build_assistant_response(db, project, payload)
+    try:
+        project = get_owned_project(db, current_user, payload.project_id)
+        return build_assistant_response(db, project, payload)
+    except Exception as exc:
+        logger.exception("assistant_chat_failed")
+        return assistant_route_fallback(payload, reason=exc.__class__.__name__)
 
 
 def ensure_debug_enabled() -> None:
@@ -1397,6 +1884,78 @@ def update_user_profile(
     return user_to_dict(current_user)
 
 
+AVATAR_ALLOWED_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+AVATAR_MAX_BYTES = 2 * 1024 * 1024
+
+
+def avatar_upload_dir() -> Path:
+    return settings.resolve_path(settings.export_dir) / "uploads" / "avatars"
+
+
+def avatar_media_type(filename: str) -> str:
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".png":
+        return "image/png"
+    if suffix == ".webp":
+        return "image/webp"
+    return "image/jpeg"
+
+
+@app.get("/api/user/avatar/default")
+def default_user_avatar() -> FileResponse:
+    path = settings.resolve_path("avatar.jpg")
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="默认头像不存在")
+    return FileResponse(path, media_type="image/jpeg")
+
+
+@app.get("/api/user/avatar/files/{filename}")
+def serve_user_avatar(filename: str) -> FileResponse:
+    if "/" in filename or "\\" in filename or ".." in filename:
+        raise HTTPException(status_code=404, detail="头像不存在")
+    path = avatar_upload_dir() / filename
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="头像不存在")
+    return FileResponse(path, media_type=avatar_media_type(filename))
+
+
+@app.post("/api/user/avatar")
+def upload_user_avatar(
+    payload: AvatarUploadRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    content_type = payload.content_type.lower().split(";")[0].strip()
+    suffix = AVATAR_ALLOWED_TYPES.get(content_type)
+    if suffix is None:
+        raise HTTPException(status_code=422, detail="头像仅支持 JPG、PNG 或 WebP 图片")
+    raw_data = payload.data_base64
+    if "," in raw_data and raw_data.split(",", 1)[0].lower().startswith("data:"):
+        raw_data = raw_data.split(",", 1)[1]
+    try:
+        content = base64.b64decode(raw_data, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="头像图片解析失败，请重新上传") from exc
+    if not content:
+        raise HTTPException(status_code=422, detail="头像图片为空")
+    if len(content) > AVATAR_MAX_BYTES:
+        raise HTTPException(status_code=422, detail="头像图片建议控制在 2MB 以内")
+
+    upload_dir = avatar_upload_dir()
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    filename = f"user_{current_user.id}_{uuid4().hex[:12]}{suffix}"
+    path = upload_dir / filename
+    path.write_bytes(content)
+    current_user.avatar_url = f"/api/user/avatar/files/{filename}"
+    db.commit()
+    db.refresh(current_user)
+    return {"avatar_url": current_user.avatar_url, "user": user_to_dict(current_user)}
+
+
 @app.post("/api/user/upgrade")
 def upgrade_user_to_pro(
     payload: UpgradeUserRequest,
@@ -1466,7 +2025,11 @@ def list_simulations(
             defer(SimulationProject.result_data),
         )
         .where(*filters)
-        .order_by(SimulationProject.updated_at.desc(), SimulationProject.id.desc())
+        .order_by(
+            sql_case((SimulationProject.project_name.like("【代表案例】%"), 0), else_=1),
+            SimulationProject.updated_at.desc(),
+            SimulationProject.id.desc(),
+        )
         .offset(current_offset)
         .limit(current_limit)
     )
@@ -1478,6 +2041,34 @@ def list_simulations(
         "page_size": current_page_size,
         "items": [project_to_dict(row, include_configs=False) for row in db.scalars(stmt)],
     }
+
+
+@app.get("/api/simulations/summary")
+def simulations_summary(db: DbSession, current_user: CurrentUser) -> dict[str, Any]:
+    """Return per-status project counts for the dashboard summary cards."""
+    base_filter = [SimulationProject.user_id == current_user.id]
+    draft = db.scalar(
+        select(func.count()).select_from(SimulationProject).where(
+            SimulationProject.user_id == current_user.id,
+            SimulationProject.status == "draft",
+        )
+    ) or 0
+    running = db.scalar(
+        select(func.count()).select_from(SimulationProject).where(
+            SimulationProject.user_id == current_user.id,
+            SimulationProject.status.in_(ACTIVE_PROJECT_STATUSES),
+        )
+    ) or 0
+    completed = db.scalar(
+        select(func.count()).select_from(SimulationProject).where(
+            SimulationProject.user_id == current_user.id,
+            SimulationProject.status == "completed",
+        )
+    ) or 0
+    total = db.scalar(
+        select(func.count()).select_from(SimulationProject).where(*base_filter)
+    ) or 0
+    return {"draft": int(draft), "running": int(running), "completed": int(completed), "total": int(total)}
 
 
 @app.post("/api/simulations", status_code=status.HTTP_201_CREATED)
@@ -1505,6 +2096,25 @@ def get_simulation(project_id: int, db: DbSession, current_user: CurrentUser) ->
     return project_to_dict(get_owned_project(db, current_user, project_id))
 
 
+@app.post("/api/simulations/{project_id}/clone", status_code=status.HTTP_201_CREATED)
+def clone_simulation(project_id: int, db: DbSession, current_user: CurrentUser) -> dict[str, Any]:
+    source = get_owned_project(db, current_user, project_id)
+    cloned = SimulationProject(
+        user_id=current_user.id,
+        project_name=f"{source.project_name}（补录副本）"[:160],
+        status="draft",
+        plan_type_used=current_user.plan_type or source.plan_type_used or "basic",
+        product_definition=dict(source.product_definition or {}),
+        market_config=dict(source.market_config or {}),
+        draft_version=1,
+        quota_charged=False,
+    )
+    db.add(cloned)
+    db.commit()
+    db.refresh(cloned)
+    return project_to_dict(cloned)
+
+
 @app.delete("/api/simulations/{project_id}")
 def delete_simulation(project_id: int, db: DbSession, current_user: CurrentUser) -> dict[str, Any]:
     project = get_owned_project(db, current_user, project_id)
@@ -1519,7 +2129,7 @@ def delete_simulation(project_id: int, db: DbSession, current_user: CurrentUser)
         client.delete(f"simulation:heartbeat:{task_id}")
     client.delete(project_progress_key(project.id))
     client.delete(project_lock_key(project.id))
-    for model in (ExportTask, ShareToken, QuotaLog, DistillCheckLog, RagTraceLog, SimulationTaskLog):
+    for model in (CustomCompetitorBackfillJob, ExportTask, ShareToken, QuotaLog, DistillCheckLog, RagTraceLog, SimulationTaskLog):
         db.execute(delete(model).where(model.project_id == project.id))
     db.execute(delete(SimulationProject).where(SimulationProject.id == project.id))
     db.commit()
@@ -1692,6 +2302,12 @@ def run_simulation(project_id: int, db: DbSession, current_user: CurrentUser) ->
         client.rpush(queue_name, json.dumps(task_payload, ensure_ascii=False))
         redis_json_set(progress_key(task_id), progress, ex=settings.redis_progress_expire_seconds)
         redis_json_set(project_progress_key(project.id), progress, ex=settings.redis_progress_expire_seconds)
+        try:
+            enqueue_project_backfill(db, project)
+            db.commit()
+        except Exception:
+            db.rollback()
+            logger.exception("自定义竞品低优先级复用任务入队失败，主仿真任务继续运行", extra={"project_id": project.id})
     except Exception:
         db.rollback()
         client.delete(lock_key)
@@ -1703,6 +2319,7 @@ def run_simulation(project_id: int, db: DbSession, current_user: CurrentUser) ->
 @app.get("/api/simulations/{project_id}/progress")
 def get_simulation_progress(project_id: int, db: DbSession, current_user: CurrentUser) -> dict[str, Any]:
     project = get_owned_project(db, current_user, project_id)
+    promote_report_waiting_if_ready(db, project)
     progress = redis_json_get(progress_key(project.task_id)) if project.task_id else None
     if progress is None:
         progress = redis_json_get(project_progress_key(project.id))
@@ -1858,8 +2475,23 @@ def list_simulation_logs(
 @app.get("/api/simulations/{project_id}/report")
 def get_report(project_id: int, db: DbSession, current_user: CurrentUser) -> dict[str, Any]:
     project = get_owned_project(db, current_user, project_id)
+    promote_report_waiting_if_ready(db, project)
+    if project.status == REPORT_WAITING_STATUS:
+        remaining = report_wait_remaining_seconds(project.result_data or {})
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "code": "REPORT_NOT_READY",
+                "message": "报告正在整理，请稍后刷新",
+                "data": {
+                    "remaining_seconds": remaining,
+                    **report_wait_progress_extra(project.result_data or {}),
+                },
+            },
+        )
     if project.status != "completed" or not project.result_data:
         raise HTTPException(status_code=404, detail="报告尚未生成")
+    repair_project_report_data(db, project)
     report = with_project_report_fallbacks(sanitize_web_report(project.result_data, public=False), project)
     return {
         "project_id": project.id,
@@ -1871,6 +2503,69 @@ def get_report(project_id: int, db: DbSession, current_user: CurrentUser) -> dic
     }
 
 
+@app.post("/api/simulations/{project_id}/what-if")
+def simulation_what_if(
+    project_id: int,
+    payload: WhatIfRequest,
+    db: DbSession,
+    current_user: CurrentUser,
+) -> dict[str, Any]:
+    project = get_owned_project(db, current_user, project_id)
+    if project.status != "completed" or not isinstance(project.result_data, dict):
+        raise HTTPException(status_code=409, detail="项目完成后才能进行情景推演")
+    report = project.result_data
+    result: dict[str, Any] = {"project_id": project.id, "persisted": False}
+    if payload.weights is not None:
+        if set(payload.weights) != set(MAUT_WEIGHTS):
+            raise HTTPException(status_code=422, detail="自定义权重必须完整包含五个决策维度")
+        if any(not isinstance(value, (int, float)) or value < 0 for value in payload.weights.values()):
+            raise HTTPException(status_code=422, detail="权重必须是非负数字")
+        weights = normalize_weights(payload.weights)
+        decisions = report.get("purchase_decisions") if isinstance(report.get("purchase_decisions"), list) else []
+        scored = []
+        for decision in decisions:
+            if not isinstance(decision, dict) or not isinstance(decision.get("maut_scores"), dict):
+                continue
+            scored.append(
+                (
+                    weighted_purchase_intent(decision["maut_scores"], weights),
+                    max(maut_safe_float(decision.get("sample_weight"), 1.0), 0.0),
+                )
+            )
+        total_weight = sum(weight for _, weight in scored)
+        if scored and total_weight:
+            intent = sum(score * weight for score, weight in scored) / total_weight
+        else:
+            aggregation = report.get("aggregation") if isinstance(report.get("aggregation"), dict) else {}
+            dimensions = aggregation.get("dimension_scores") if isinstance(aggregation.get("dimension_scores"), dict) else {}
+            intent = sum(
+                weights[key] * maut_safe_float((dimensions.get(key) or {}).get("avg_score"), 0.0)
+                for key in weights
+                if isinstance(dimensions.get(key), dict)
+            )
+        result["weight_scenario"] = {
+            "template": "custom",
+            "weights": weights,
+            "purchase_intent": round(intent * 100, 1),
+        }
+    if payload.competitor_count is not None:
+        chart = report.get("chart_data") if isinstance(report.get("chart_data"), dict) else {}
+        scope = report.get("market_share_scope") if isinstance(report.get("market_share_scope"), dict) else chart.get("market_share_scope") or {}
+        self_share = maut_safe_float(scope.get("simulation_environment_share"), 0.0)
+        configured_count = max(1, int(maut_safe_float(scope.get("configured_competitor_count"), 1)))
+        average_competitor_share = max(0.0, 100.0 - self_share) / configured_count
+        denominator = self_share + average_competitor_share * payload.competitor_count
+        result["market_share_scenario"] = {
+            "competitor_count": payload.competitor_count,
+            "share": round(self_share * 100 / denominator, 1) if denominator > 0 else 0.0,
+            "relative_competitiveness_index": scope.get("relative_competitiveness_index"),
+            "is_market_calibrated": False,
+        }
+    if payload.weights is None and payload.competitor_count is None:
+        raise HTTPException(status_code=422, detail="至少提供自定义权重或竞品数量")
+    return result
+
+
 @app.post("/api/simulations/{project_id}/exports", status_code=status.HTTP_201_CREATED)
 def create_export_task(
     project_id: int,
@@ -1879,6 +2574,7 @@ def create_export_task(
     current_user: CurrentUser,
 ) -> dict[str, Any]:
     project = get_owned_project(db, current_user, project_id)
+    promote_report_waiting_if_ready(db, project)
     if project.status != "completed":
         raise HTTPException(status_code=409, detail="项目完成后才能导出")
     if project.plan_type_used != "pro":
@@ -1886,6 +2582,7 @@ def create_export_task(
             status_code=403,
             detail={"code": "EXPORT_FORBIDDEN", "message": "普通版只能在线查看报告，专业版可导出", "data": {}},
         )
+    repair_project_report_data(db, project)
     task = ExportTask(
         project_id=project.id,
         user_id=current_user.id,
@@ -1996,8 +2693,11 @@ def download_export_task(export_task_id: int, db: DbSession, current_user: Curre
 def get_pdf_render_payload(token: str, db: DbSession) -> dict[str, Any]:
     payload = decode_pdf_render_token(token)
     project = db.get(SimulationProject, int(payload["project_id"]))
+    if project is not None:
+        promote_report_waiting_if_ready(db, project)
     if project is None or project.status != "completed" or not project.result_data:
         raise HTTPException(status_code=404, detail="PDF 渲染报告不存在")
+    repair_project_report_data(db, project)
     return build_report_payload(project, public=True, compact=True)
 
 
@@ -2009,6 +2709,7 @@ def create_project_share_token(
     current_user: CurrentUser,
 ) -> dict[str, Any]:
     project = get_owned_project(db, current_user, project_id)
+    promote_report_waiting_if_ready(db, project)
     if project.status != "completed" or not project.result_data:
         raise HTTPException(status_code=409, detail="报告生成后才能分享")
     if project.plan_type_used != "pro":
@@ -2016,6 +2717,7 @@ def create_project_share_token(
             status_code=403,
             detail={"code": "SHARE_FORBIDDEN", "message": "普通版只能在线查看报告，专业版可分享", "data": {}},
         )
+    repair_project_report_data(db, project)
     token = create_share_token()
     expires_at = utc_now_naive() + timedelta(hours=payload.expires_in_hours)
     item = ShareToken(
@@ -2096,8 +2798,11 @@ def get_public_shared_report(token: str, db: DbSession) -> dict[str, Any]:
     if item.expires_at and item.expires_at < utc_now_naive():
         raise HTTPException(status_code=404, detail="分享链接已过期")
     project = db.get(SimulationProject, item.project_id)
+    if project is not None:
+        promote_report_waiting_if_ready(db, project)
     if project is None or project.status != "completed" or not project.result_data:
         raise HTTPException(status_code=404, detail="分享报告不存在")
+    repair_project_report_data(db, project)
     payload = build_report_payload(project, public=True, compact=True)
     payload.update(
         {

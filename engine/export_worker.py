@@ -9,6 +9,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+from redis.exceptions import TimeoutError as RedisTimeoutError
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(PROJECT_ROOT))
@@ -120,7 +122,11 @@ def process_export_task(payload: dict[str, Any]) -> None:
 
 def pop_export_task(timeout: int) -> dict[str, Any] | None:
     export_heartbeat("waiting", {"queue": settings.redis_export_queue})
-    result = get_redis_client().blpop([settings.redis_export_queue], timeout=timeout)
+    try:
+        result = get_redis_client().blpop([settings.redis_export_queue], timeout=timeout)
+    except RedisTimeoutError:
+        export_heartbeat("idle", {"queue": settings.redis_export_queue})
+        return None
     if result is None:
         export_heartbeat("idle", {"queue": settings.redis_export_queue})
         return None

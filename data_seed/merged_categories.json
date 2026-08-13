@@ -1,0 +1,2571 @@
+{
+  "version": "merged",
+  "description": "合并后的品类与参数定义（已移除产品数据）",
+  "categories": [
+    {
+      "category": "消费电子",
+      "subcategory": "智能手机",
+      "fields": [
+        {
+          "name": "processor",
+          "type": "string",
+          "desc": "处理器型号"
+        },
+        {
+          "name": "ram",
+          "type": "number",
+          "desc": "运行内存（GB）"
+        },
+        {
+          "name": "storage",
+          "type": "number",
+          "desc": "存储容量（GB）"
+        },
+        {
+          "name": "display",
+          "type": "string",
+          "desc": "屏幕尺寸与类型"
+        },
+        {
+          "name": "battery",
+          "type": "number",
+          "desc": "电池容量（mAh）"
+        },
+        {
+          "name": "camera",
+          "type": "string",
+          "desc": "后置摄像头参数"
+        },
+        {
+          "name": "charging_power",
+          "type": "number",
+          "desc": "充电功率（W）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "真无线耳机",
+      "fields": [
+        {
+          "name": "noise_cancellation",
+          "type": "string",
+          "desc": "主动降噪（是/否 + 深度dB）"
+        },
+        {
+          "name": "battery_life",
+          "type": "string",
+          "desc": "续航（单次/总，小时）"
+        },
+        {
+          "name": "bluetooth_version",
+          "type": "string",
+          "desc": "蓝牙版本"
+        },
+        {
+          "name": "waterproof",
+          "type": "string",
+          "desc": "防水等级"
+        },
+        {
+          "name": "fit_type",
+          "type": "string",
+          "desc": "佩戴方式"
+        },
+        {
+          "name": "special_features",
+          "type": "string",
+          "desc": "特殊功能"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "智能手表/手环",
+      "fields": [
+        {
+          "name": "screen",
+          "type": "string",
+          "desc": "屏幕类型与尺寸"
+        },
+        {
+          "name": "health_monitoring",
+          "type": "string",
+          "desc": "健康监测功能"
+        },
+        {
+          "name": "sports_modes",
+          "type": "number",
+          "desc": "运动模式数量"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（天）"
+        },
+        {
+          "name": "gps",
+          "type": "string",
+          "desc": "GPS（独立/依赖手机）"
+        },
+        {
+          "name": "waterproof_rating",
+          "type": "string",
+          "desc": "防水等级"
+        },
+        {
+          "name": "compatible_os",
+          "type": "string",
+          "desc": "兼容系统"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "平板电脑",
+      "fields": [
+        {
+          "name": "display",
+          "type": "string",
+          "desc": "屏幕尺寸与分辨率"
+        },
+        {
+          "name": "processor",
+          "type": "string",
+          "desc": "处理器型号"
+        },
+        {
+          "name": "ram",
+          "type": "number",
+          "desc": "运行内存（GB）"
+        },
+        {
+          "name": "storage",
+          "type": "number",
+          "desc": "存储容量（GB）"
+        },
+        {
+          "name": "stylus_support",
+          "type": "string",
+          "desc": "支持手写笔（是/否）"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "电池续航（小时，视频播放）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "相机（含无人机）",
+      "fields": [
+        {
+          "name": "sensor_size",
+          "type": "string",
+          "desc": "传感器尺寸"
+        },
+        {
+          "name": "effective_pixels",
+          "type": "number",
+          "desc": "有效像素（万）"
+        },
+        {
+          "name": "video_max",
+          "type": "string",
+          "desc": "视频最高规格"
+        },
+        {
+          "name": "image_stabilization",
+          "type": "string",
+          "desc": "防抖类型"
+        },
+        {
+          "name": "lens_mount",
+          "type": "string",
+          "desc": "镜头卡口（可换镜头）"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "笔记本电脑",
+      "fields": [
+        {
+          "name": "processor",
+          "type": "string",
+          "desc": "处理器型号"
+        },
+        {
+          "name": "ram",
+          "type": "number",
+          "desc": "内存（GB）"
+        },
+        {
+          "name": "storage",
+          "type": "string",
+          "desc": "硬盘（GB，SSD/HDD）"
+        },
+        {
+          "name": "display",
+          "type": "string",
+          "desc": "屏幕尺寸与分辨率"
+        },
+        {
+          "name": "gpu",
+          "type": "string",
+          "desc": "显卡型号"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（小时）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "游戏机",
+      "fields": [
+        {
+          "name": "processor_gpu",
+          "type": "string",
+          "desc": "处理器/GPU型号"
+        },
+        {
+          "name": "ram",
+          "type": "number",
+          "desc": "内存（GB）"
+        },
+        {
+          "name": "storage",
+          "type": "number",
+          "desc": "存储（GB）"
+        },
+        {
+          "name": "max_resolution",
+          "type": "string",
+          "desc": "支持最高分辨率"
+        },
+        {
+          "name": "controllers_included",
+          "type": "number",
+          "desc": "附带手柄数量"
+        },
+        {
+          "name": "exclusive_games_count",
+          "type": "string",
+          "desc": "独占游戏数量（大致）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "VR/AR眼镜",
+      "fields": [
+        {
+          "name": "fov",
+          "type": "number",
+          "desc": "视场角（度）"
+        },
+        {
+          "name": "resolution_per_eye",
+          "type": "string",
+          "desc": "单眼分辨率"
+        },
+        {
+          "name": "refresh_rate",
+          "type": "number",
+          "desc": "刷新率（Hz）"
+        },
+        {
+          "name": "tracking_method",
+          "type": "string",
+          "desc": "追踪方式"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "external_device_required",
+          "type": "string",
+          "desc": "是否需要外接设备"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "冰箱",
+      "fields": [
+        {
+          "name": "total_volume",
+          "type": "number",
+          "desc": "总容积（升）"
+        },
+        {
+          "name": "door_structure",
+          "type": "string",
+          "desc": "门体结构"
+        },
+        {
+          "name": "energy_efficiency",
+          "type": "string",
+          "desc": "能效等级"
+        },
+        {
+          "name": "cooling_method",
+          "type": "string",
+          "desc": "制冷方式"
+        },
+        {
+          "name": "inverter",
+          "type": "string",
+          "desc": "变频/定频"
+        },
+        {
+          "name": "noise",
+          "type": "number",
+          "desc": "噪音（dB(A)）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "洗衣机/烘干机",
+      "fields": [
+        {
+          "name": "wash_capacity",
+          "type": "number",
+          "desc": "洗涤容量（kg）"
+        },
+        {
+          "name": "dry_capacity",
+          "type": "number",
+          "desc": "烘干容量（kg，洗烘一体）"
+        },
+        {
+          "name": "energy_efficiency",
+          "type": "string",
+          "desc": "能效等级"
+        },
+        {
+          "name": "motor_type",
+          "type": "string",
+          "desc": "电机类型"
+        },
+        {
+          "name": "features",
+          "type": "string",
+          "desc": "特色功能"
+        },
+        {
+          "name": "noise_wash_spin",
+          "type": "string",
+          "desc": "噪音（洗/脱，dB）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "空调",
+      "fields": [
+        {
+          "name": "horsepower",
+          "type": "string",
+          "desc": "匹数"
+        },
+        {
+          "name": "energy_efficiency",
+          "type": "string",
+          "desc": "能效等级"
+        },
+        {
+          "name": "inverter",
+          "type": "string",
+          "desc": "变频/定频"
+        },
+        {
+          "name": "cooling_power",
+          "type": "number",
+          "desc": "制冷功率（W）"
+        },
+        {
+          "name": "heating_power",
+          "type": "number",
+          "desc": "制热功率（W）"
+        },
+        {
+          "name": "air_flow",
+          "type": "number",
+          "desc": "循环风量（m³/h）"
+        },
+        {
+          "name": "noise_indoor_outdoor",
+          "type": "string",
+          "desc": "噪音（内/外，dB）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "电视",
+      "fields": [
+        {
+          "name": "screen_size",
+          "type": "number",
+          "desc": "屏幕尺寸（英寸）"
+        },
+        {
+          "name": "resolution",
+          "type": "string",
+          "desc": "分辨率"
+        },
+        {
+          "name": "panel_type",
+          "type": "string",
+          "desc": "面板类型"
+        },
+        {
+          "name": "refresh_rate",
+          "type": "number",
+          "desc": "刷新率（Hz）"
+        },
+        {
+          "name": "hdr_support",
+          "type": "string",
+          "desc": "HDR支持"
+        },
+        {
+          "name": "smart_os",
+          "type": "string",
+          "desc": "智能系统"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "扫地机器人",
+      "fields": [
+        {
+          "name": "suction_power",
+          "type": "number",
+          "desc": "吸力（Pa）"
+        },
+        {
+          "name": "navigation_tech",
+          "type": "string",
+          "desc": "导航技术"
+        },
+        {
+          "name": "obstacle_avoidance",
+          "type": "string",
+          "desc": "避障类型"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（分钟）"
+        },
+        {
+          "name": "water_tank_capacity",
+          "type": "number",
+          "desc": "水箱容量（ml）"
+        },
+        {
+          "name": "self_cleaning",
+          "type": "string",
+          "desc": "自清洁功能"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "吸尘器（手持/洗地机）",
+      "fields": [
+        {
+          "name": "suction_power",
+          "type": "number",
+          "desc": "吸力（AW或Pa）"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（分钟）"
+        },
+        {
+          "name": "dustbin_capacity",
+          "type": "number",
+          "desc": "尘盒容量（L）"
+        },
+        {
+          "name": "water_tank_capacity",
+          "type": "number",
+          "desc": "水箱容量（ml，洗地机）"
+        },
+        {
+          "name": "self_cleaning",
+          "type": "string",
+          "desc": "自清洁功能"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（kg）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "电饭煲/压力锅",
+      "fields": [
+        {
+          "name": "capacity",
+          "type": "number",
+          "desc": "容量（L）"
+        },
+        {
+          "name": "heating_tech",
+          "type": "string",
+          "desc": "加热技术"
+        },
+        {
+          "name": "inner_pot_material",
+          "type": "string",
+          "desc": "内胆材质"
+        },
+        {
+          "name": "power",
+          "type": "number",
+          "desc": "功率（W）"
+        },
+        {
+          "name": "pressure_level",
+          "type": "string",
+          "desc": "压力等级（仅压力锅）"
+        },
+        {
+          "name": "preset_programs",
+          "type": "number",
+          "desc": "预设程序数量"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "空气净化器",
+      "fields": [
+        {
+          "name": "cadr_particulate",
+          "type": "number",
+          "desc": "颗粒物CADR（m³/h）"
+        },
+        {
+          "name": "cadr_formaldehyde",
+          "type": "number",
+          "desc": "甲醛CADR（m³/h）"
+        },
+        {
+          "name": "ccm_level",
+          "type": "string",
+          "desc": "CCM等级"
+        },
+        {
+          "name": "noise",
+          "type": "string",
+          "desc": "噪音范围（dB）"
+        },
+        {
+          "name": "filter_type",
+          "type": "string",
+          "desc": "滤网类型"
+        },
+        {
+          "name": "smart_features",
+          "type": "string",
+          "desc": "智能功能"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "洗碗机",
+      "fields": [
+        {
+          "name": "place_settings",
+          "type": "number",
+          "desc": "套数"
+        },
+        {
+          "name": "installation_type",
+          "type": "string",
+          "desc": "安装方式"
+        },
+        {
+          "name": "drying_method",
+          "type": "string",
+          "desc": "烘干方式"
+        },
+        {
+          "name": "water_consumption",
+          "type": "number",
+          "desc": "耗水量（L）"
+        },
+        {
+          "name": "energy_efficiency",
+          "type": "string",
+          "desc": "能效等级"
+        },
+        {
+          "name": "noise",
+          "type": "number",
+          "desc": "噪音（dB）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "家用电器",
+      "subcategory": "微波炉/烤箱/蒸烤箱",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型（微波炉/烤箱/蒸烤箱）"
+        },
+        {
+          "name": "capacity",
+          "type": "number",
+          "desc": "容量（L）"
+        },
+        {
+          "name": "power",
+          "type": "number",
+          "desc": "功率（W）"
+        },
+        {
+          "name": "max_temperature",
+          "type": "number",
+          "desc": "最高温度（℃）"
+        },
+        {
+          "name": "control_type",
+          "type": "string",
+          "desc": "控制方式"
+        },
+        {
+          "name": "special_functions",
+          "type": "string",
+          "desc": "特殊功能"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能门锁",
+      "fields": [
+        {
+          "name": "unlock_methods",
+          "type": "string",
+          "desc": "开锁方式"
+        },
+        {
+          "name": "security_level",
+          "type": "string",
+          "desc": "安全等级"
+        },
+        {
+          "name": "battery_life",
+          "type": "string",
+          "desc": "续航"
+        },
+        {
+          "name": "emergency_power",
+          "type": "string",
+          "desc": "应急供电"
+        },
+        {
+          "name": "connectivity",
+          "type": "string",
+          "desc": "联网方式"
+        },
+        {
+          "name": "features",
+          "type": "string",
+          "desc": "特色功能"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能摄像头（室内/室外）",
+      "fields": [
+        {
+          "name": "resolution",
+          "type": "string",
+          "desc": "分辨率"
+        },
+        {
+          "name": "night_vision",
+          "type": "string",
+          "desc": "夜视"
+        },
+        {
+          "name": "fov",
+          "type": "number",
+          "desc": "视场角（度）"
+        },
+        {
+          "name": "pan_tilt",
+          "type": "string",
+          "desc": "云台"
+        },
+        {
+          "name": "ai_detection",
+          "type": "string",
+          "desc": "AI检测"
+        },
+        {
+          "name": "storage_method",
+          "type": "string",
+          "desc": "存储方式"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能插座/开关",
+      "fields": [
+        {
+          "name": "max_power",
+          "type": "number",
+          "desc": "最大功率（W）"
+        },
+        {
+          "name": "metering",
+          "type": "string",
+          "desc": "计量功能"
+        },
+        {
+          "name": "local_timer",
+          "type": "string",
+          "desc": "本地定时"
+        },
+        {
+          "name": "voice_control",
+          "type": "string",
+          "desc": "语音控制"
+        },
+        {
+          "name": "connectivity",
+          "type": "string",
+          "desc": "联网方式"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能网关/中控屏",
+      "fields": [
+        {
+          "name": "protocols",
+          "type": "string",
+          "desc": "通信协议"
+        },
+        {
+          "name": "sub_device_capacity",
+          "type": "number",
+          "desc": "子设备容量"
+        },
+        {
+          "name": "screen_size",
+          "type": "number",
+          "desc": "屏幕尺寸（英寸，中控屏）"
+        },
+        {
+          "name": "voice_assistant",
+          "type": "string",
+          "desc": "语音助手"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能传感器",
+      "fields": [
+        {
+          "name": "sensor_type",
+          "type": "string",
+          "desc": "传感器类型"
+        },
+        {
+          "name": "connectivity",
+          "type": "string",
+          "desc": "连接方式"
+        },
+        {
+          "name": "battery_life",
+          "type": "string",
+          "desc": "电池寿命"
+        },
+        {
+          "name": "range",
+          "type": "number",
+          "desc": "检测距离/范围"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能路由器",
+      "fields": [
+        {
+          "name": "wifi_standard",
+          "type": "string",
+          "desc": "WiFi标准"
+        },
+        {
+          "name": "speed",
+          "type": "string",
+          "desc": "速率"
+        },
+        {
+          "name": "antennas",
+          "type": "number",
+          "desc": "天线数量"
+        },
+        {
+          "name": "ports",
+          "type": "string",
+          "desc": "接口"
+        },
+        {
+          "name": "mesh_support",
+          "type": "string",
+          "desc": "Mesh支持"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能音箱",
+      "fields": [
+        {
+          "name": "voice_assistant",
+          "type": "string",
+          "desc": "语音助手"
+        },
+        {
+          "name": "speaker_power",
+          "type": "string",
+          "desc": "扬声器功率"
+        },
+        {
+          "name": "microphones",
+          "type": "number",
+          "desc": "麦克风数量"
+        },
+        {
+          "name": "connectivity",
+          "type": "string",
+          "desc": "连接方式"
+        },
+        {
+          "name": "smart_hub",
+          "type": "string",
+          "desc": "是否带智能网关"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "智能硬件",
+      "subcategory": "智能窗帘电机",
+      "fields": [
+        {
+          "name": "motor_type",
+          "type": "string",
+          "desc": "电机类型"
+        },
+        {
+          "name": "torque",
+          "type": "string",
+          "desc": "扭矩"
+        },
+        {
+          "name": "max_load",
+          "type": "number",
+          "desc": "最大负载（kg）"
+        },
+        {
+          "name": "connectivity",
+          "type": "string",
+          "desc": "联网方式"
+        },
+        {
+          "name": "noise_level",
+          "type": "string",
+          "desc": "噪音等级"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "游戏机",
+      "subcategory": "游戏主机",
+      "fields": [
+        {
+          "name": "processor_gpu",
+          "type": "string",
+          "desc": "处理器/GPU型号"
+        },
+        {
+          "name": "ram",
+          "type": "number",
+          "desc": "内存（GB）"
+        },
+        {
+          "name": "storage",
+          "type": "number",
+          "desc": "存储（GB）"
+        },
+        {
+          "name": "max_resolution",
+          "type": "string",
+          "desc": "支持最高分辨率"
+        },
+        {
+          "name": "controllers_included",
+          "type": "number",
+          "desc": "附带手柄数量"
+        },
+        {
+          "name": "exclusive_games_count",
+          "type": "string",
+          "desc": "独占游戏数量"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "VR/AR眼镜",
+      "subcategory": "VR头显",
+      "fields": [
+        {
+          "name": "fov",
+          "type": "number",
+          "desc": "视场角（度）"
+        },
+        {
+          "name": "resolution_per_eye",
+          "type": "string",
+          "desc": "单眼分辨率"
+        },
+        {
+          "name": "refresh_rate",
+          "type": "number",
+          "desc": "刷新率（Hz）"
+        },
+        {
+          "name": "tracking_method",
+          "type": "string",
+          "desc": "追踪方式"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "external_device_required",
+          "type": "string",
+          "desc": "是否需要外接设备"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "相机",
+      "subcategory": "相机（含无人机）",
+      "fields": [
+        {
+          "name": "sensor_size",
+          "type": "string",
+          "desc": "传感器尺寸"
+        },
+        {
+          "name": "effective_pixels",
+          "type": "number",
+          "desc": "有效像素（万）"
+        },
+        {
+          "name": "video_max",
+          "type": "string",
+          "desc": "视频最高规格"
+        },
+        {
+          "name": "image_stabilization",
+          "type": "string",
+          "desc": "防抖类型"
+        },
+        {
+          "name": "lens_mount",
+          "type": "string",
+          "desc": "镜头卡口"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "电动牙刷",
+      "fields": [
+        {
+          "name": "vibration_frequency",
+          "type": "number",
+          "desc": "震动频率（次/分钟）"
+        },
+        {
+          "name": "cleaning_modes",
+          "type": "number",
+          "desc": "清洁模式数量"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（天）"
+        },
+        {
+          "name": "charging_method",
+          "type": "string",
+          "desc": "充电方式"
+        },
+        {
+          "name": "waterproof_rating",
+          "type": "string",
+          "desc": "防水等级"
+        },
+        {
+          "name": "pressure_sensor",
+          "type": "string",
+          "desc": "压力感应（是/否）"
+        },
+        {
+          "name": "brush_head_type",
+          "type": "string",
+          "desc": "刷头类型"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "剃须刀",
+      "fields": [
+        {
+          "name": "blade_heads",
+          "type": "number",
+          "desc": "刀头数量"
+        },
+        {
+          "name": "blade_type",
+          "type": "string",
+          "desc": "刀头类型"
+        },
+        {
+          "name": "charging_time",
+          "type": "number",
+          "desc": "充电时间（小时）"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（分钟）"
+        },
+        {
+          "name": "wet_dry",
+          "type": "string",
+          "desc": "干湿两用（是/否）"
+        },
+        {
+          "name": "cleaning_station",
+          "type": "string",
+          "desc": "清洁中心（支持/不支持）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "吹风机",
+      "fields": [
+        {
+          "name": "power",
+          "type": "number",
+          "desc": "功率（W）"
+        },
+        {
+          "name": "negative_ions",
+          "type": "string",
+          "desc": "负离子（是/否）"
+        },
+        {
+          "name": "speed_settings",
+          "type": "number",
+          "desc": "风速档位"
+        },
+        {
+          "name": "temp_settings",
+          "type": "number",
+          "desc": "温度档位"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "attachments",
+          "type": "number",
+          "desc": "附件（风嘴数量）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "美容仪/射频仪",
+      "fields": [
+        {
+          "name": "technology",
+          "type": "string",
+          "desc": "技术类型"
+        },
+        {
+          "name": "intensity_levels",
+          "type": "number",
+          "desc": "档位"
+        },
+        {
+          "name": "target_areas",
+          "type": "string",
+          "desc": "使用部位"
+        },
+        {
+          "name": "charging_method",
+          "type": "string",
+          "desc": "充电方式"
+        },
+        {
+          "name": "requires_gel",
+          "type": "string",
+          "desc": "是否配合凝胶"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "筋膜枪",
+      "fields": [
+        {
+          "name": "stall_force",
+          "type": "number",
+          "desc": "推力（kg）"
+        },
+        {
+          "name": "speed_levels",
+          "type": "number",
+          "desc": "转速档位"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（小时）"
+        },
+        {
+          "name": "noise_level",
+          "type": "string",
+          "desc": "噪音"
+        },
+        {
+          "name": "attachments",
+          "type": "number",
+          "desc": "按摩头数量"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "按摩仪（颈部/腰部）",
+      "fields": [
+        {
+          "name": "massage_type",
+          "type": "string",
+          "desc": "按摩方式"
+        },
+        {
+          "name": "heat_therapy",
+          "type": "string",
+          "desc": "热敷（是/否）"
+        },
+        {
+          "name": "intensity_levels",
+          "type": "number",
+          "desc": "档位"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航"
+        },
+        {
+          "name": "portable",
+          "type": "string",
+          "desc": "便携"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "冲牙器",
+      "fields": [
+        {
+          "name": "water_tank_capacity",
+          "type": "number",
+          "desc": "水箱容量（ml）"
+        },
+        {
+          "name": "water_pressure",
+          "type": "string",
+          "desc": "水压范围（psi）"
+        },
+        {
+          "name": "pulse_frequency",
+          "type": "number",
+          "desc": "脉冲频率（次/分钟）"
+        },
+        {
+          "name": "jet_modes",
+          "type": "number",
+          "desc": "模式数量"
+        },
+        {
+          "name": "portable",
+          "type": "string",
+          "desc": "便携"
+        },
+        {
+          "name": "nozzles",
+          "type": "number",
+          "desc": "喷嘴数量"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "个护健康",
+      "subcategory": "血压计/血糖仪",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "measurement_method",
+          "type": "string",
+          "desc": "测量方式"
+        },
+        {
+          "name": "memory",
+          "type": "number",
+          "desc": "记忆组数"
+        },
+        {
+          "name": "irregular_heartbeat",
+          "type": "string",
+          "desc": "心律不齐检测"
+        },
+        {
+          "name": "bluetooth",
+          "type": "string",
+          "desc": "蓝牙"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "奶瓶",
+      "fields": [
+        {
+          "name": "capacity",
+          "type": "number",
+          "desc": "容量（ml）"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "nipple_material",
+          "type": "string",
+          "desc": "奶嘴材质"
+        },
+        {
+          "name": "nipple_shape",
+          "type": "string",
+          "desc": "奶嘴形状"
+        },
+        {
+          "name": "anti_colic",
+          "type": "string",
+          "desc": "防胀气设计"
+        },
+        {
+          "name": "age_range",
+          "type": "string",
+          "desc": "适用年龄"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "婴儿推车",
+      "fields": [
+        {
+          "name": "age_weight",
+          "type": "string",
+          "desc": "适用年龄/体重"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "车重（kg）"
+        },
+        {
+          "name": "fold_method",
+          "type": "string",
+          "desc": "折叠方式"
+        },
+        {
+          "name": "seat_reversible",
+          "type": "string",
+          "desc": "座椅换向"
+        },
+        {
+          "name": "suspension",
+          "type": "string",
+          "desc": "避震"
+        },
+        {
+          "name": "canopy_upf",
+          "type": "string",
+          "desc": "遮阳棚UPF等级"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "儿童安全座椅",
+      "fields": [
+        {
+          "name": "age_weight_range",
+          "type": "string",
+          "desc": "适用年龄/体重"
+        },
+        {
+          "name": "fixation",
+          "type": "string",
+          "desc": "固定方式"
+        },
+        {
+          "name": "installation_direction",
+          "type": "string",
+          "desc": "安装方向"
+        },
+        {
+          "name": "side_impact",
+          "type": "string",
+          "desc": "侧面防护"
+        },
+        {
+          "name": "certification",
+          "type": "string",
+          "desc": "认证标准"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "吸奶器",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "suction_levels",
+          "type": "number",
+          "desc": "吸力档位"
+        },
+        {
+          "name": "modes",
+          "type": "string",
+          "desc": "模式"
+        },
+        {
+          "name": "noise",
+          "type": "number",
+          "desc": "噪音（dB）"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "电池续航（分钟）"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "接触母乳材质"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "婴儿背带/腰凳",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "weight_range",
+          "type": "string",
+          "desc": "适用体重"
+        },
+        {
+          "name": "hip_position",
+          "type": "string",
+          "desc": "防髋关节发育不良"
+        },
+        {
+          "name": "breathable",
+          "type": "string",
+          "desc": "透气设计"
+        },
+        {
+          "name": "washable",
+          "type": "string",
+          "desc": "可水洗"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "婴儿床",
+      "fields": [
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "bed_size",
+          "type": "string",
+          "desc": "床尺寸"
+        },
+        {
+          "name": "adjustable_height",
+          "type": "string",
+          "desc": "高度可调"
+        },
+        {
+          "name": "convertible",
+          "type": "string",
+          "desc": "可变换"
+        },
+        {
+          "name": "wheels",
+          "type": "string",
+          "desc": "带轮子"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "奶瓶消毒器/恒温壶",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "capacity",
+          "type": "string",
+          "desc": "容量"
+        },
+        {
+          "name": "sterilization_method",
+          "type": "string",
+          "desc": "消毒方式"
+        },
+        {
+          "name": "drying",
+          "type": "string",
+          "desc": "烘干功能"
+        },
+        {
+          "name": "constant_temp",
+          "type": "string",
+          "desc": "恒温功能"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "婴儿棉柔巾/湿巾",
+      "fields": [
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "specification",
+          "type": "string",
+          "desc": "规格"
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "desc": "数量（抽/包）"
+        },
+        {
+          "name": "alcohol_free",
+          "type": "string",
+          "desc": "无酒精"
+        },
+        {
+          "name": "fragrance_free",
+          "type": "string",
+          "desc": "无香精"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元/包）"
+        }
+      ]
+    },
+    {
+      "category": "母婴用品",
+      "subcategory": "纸尿裤",
+      "fields": [
+        {
+          "name": "size_range",
+          "type": "string",
+          "desc": "尺码范围"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "absorbency",
+          "type": "string",
+          "desc": "吸水性"
+        },
+        {
+          "name": "breathable",
+          "type": "string",
+          "desc": "透气性"
+        },
+        {
+          "name": "wet_indicator",
+          "type": "string",
+          "desc": "尿显"
+        },
+        {
+          "name": "count",
+          "type": "number",
+          "desc": "片数"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元/包）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "帐篷",
+      "fields": [
+        {
+          "name": "capacity",
+          "type": "number",
+          "desc": "容纳人数"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（kg）"
+        },
+        {
+          "name": "waterproof_rating",
+          "type": "string",
+          "desc": "防水指数（mm）"
+        },
+        {
+          "name": "setup_type",
+          "type": "string",
+          "desc": "搭建方式"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "wind_resistance",
+          "type": "string",
+          "desc": "防风等级"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "睡袋",
+      "fields": [
+        {
+          "name": "temperature_rating",
+          "type": "string",
+          "desc": "温标（舒适/极限，℃）"
+        },
+        {
+          "name": "filling",
+          "type": "string",
+          "desc": "填充物"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（g）"
+        },
+        {
+          "name": "packed_volume",
+          "type": "number",
+          "desc": "压缩体积（L）"
+        },
+        {
+          "name": "style",
+          "type": "string",
+          "desc": "款式"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "登山包/背包",
+      "fields": [
+        {
+          "name": "capacity",
+          "type": "number",
+          "desc": "容量（L）"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "自重（kg）"
+        },
+        {
+          "name": "suspension_system",
+          "type": "string",
+          "desc": "背负系统"
+        },
+        {
+          "name": "rain_cover",
+          "type": "string",
+          "desc": "防雨罩"
+        },
+        {
+          "name": "external_attachment",
+          "type": "string",
+          "desc": "外部挂点"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "冲锋衣/户外服装",
+      "fields": [
+        {
+          "name": "waterproof_rating",
+          "type": "string",
+          "desc": "防水指数（mm）"
+        },
+        {
+          "name": "breathability",
+          "type": "string",
+          "desc": "透气性（g/m²/24h）"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "面料"
+        },
+        {
+          "name": "seam_sealed",
+          "type": "string",
+          "desc": "压胶"
+        },
+        {
+          "name": "hood_adjustable",
+          "type": "string",
+          "desc": "风帽可调"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "登山杖",
+      "fields": [
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "length_adjustable",
+          "type": "string",
+          "desc": "长度调节"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克/根）"
+        },
+        {
+          "name": "locking_type",
+          "type": "string",
+          "desc": "锁定方式"
+        },
+        {
+          "name": "shock_absorbing",
+          "type": "string",
+          "desc": "减震"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元/对）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "户外炉具/炊具",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "power",
+          "type": "number",
+          "desc": "功率（W）"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（g）"
+        },
+        {
+          "name": "fuel_type",
+          "type": "string",
+          "desc": "燃料类型"
+        },
+        {
+          "name": "boil_time",
+          "type": "string",
+          "desc": "烧水时间"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "户外电源/移动电源",
+      "fields": [
+        {
+          "name": "capacity",
+          "type": "number",
+          "desc": "容量（Wh）"
+        },
+        {
+          "name": "output_power",
+          "type": "number",
+          "desc": "输出功率（W）"
+        },
+        {
+          "name": "output_ports",
+          "type": "string",
+          "desc": "输出接口"
+        },
+        {
+          "name": "charging_method",
+          "type": "string",
+          "desc": "充电方式"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（kg）"
+        },
+        {
+          "name": "battery_type",
+          "type": "string",
+          "desc": "电池类型"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "露营灯/头灯",
+      "fields": [
+        {
+          "name": "brightness",
+          "type": "number",
+          "desc": "亮度（流明）"
+        },
+        {
+          "name": "battery_life",
+          "type": "string",
+          "desc": "续航"
+        },
+        {
+          "name": "waterproof_rating",
+          "type": "string",
+          "desc": "防水等级"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（g）"
+        },
+        {
+          "name": "rechargeable",
+          "type": "string",
+          "desc": "可充电"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "户外装备",
+      "subcategory": "户外手表",
+      "fields": [
+        {
+          "name": "gps",
+          "type": "string",
+          "desc": "GPS"
+        },
+        {
+          "name": "heart_rate_monitor",
+          "type": "string",
+          "desc": "心率监测"
+        },
+        {
+          "name": "battery_life",
+          "type": "number",
+          "desc": "续航（天）"
+        },
+        {
+          "name": "waterproof_rating",
+          "type": "string",
+          "desc": "防水等级"
+        },
+        {
+          "name": "sports_modes",
+          "type": "number",
+          "desc": "运动模式数量"
+        },
+        {
+          "name": "barometer",
+          "type": "string",
+          "desc": "气压计"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "轮椅（手动/电动）",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "net_weight",
+          "type": "number",
+          "desc": "净重（kg）"
+        },
+        {
+          "name": "load_capacity",
+          "type": "number",
+          "desc": "承重（kg）"
+        },
+        {
+          "name": "fold_method",
+          "type": "string",
+          "desc": "折叠方式"
+        },
+        {
+          "name": "seat_width",
+          "type": "number",
+          "desc": "座宽（cm）"
+        },
+        {
+          "name": "tire_type",
+          "type": "string",
+          "desc": "轮胎类型"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "助行器/拐杖",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "height_adjustment",
+          "type": "string",
+          "desc": "高度调节"
+        },
+        {
+          "name": "load_capacity",
+          "type": "number",
+          "desc": "承重（kg）"
+        },
+        {
+          "name": "foldable",
+          "type": "string",
+          "desc": "可折叠"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "护理床",
+      "fields": [
+        {
+          "name": "functions",
+          "type": "string",
+          "desc": "功能"
+        },
+        {
+          "name": "bed_width",
+          "type": "number",
+          "desc": "床面宽度（cm）"
+        },
+        {
+          "name": "motor_count",
+          "type": "number",
+          "desc": "电机数量"
+        },
+        {
+          "name": "side_rails",
+          "type": "string",
+          "desc": "护栏"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "坐便椅/沐浴椅",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "height_adjustable",
+          "type": "string",
+          "desc": "高度可调"
+        },
+        {
+          "name": "load_capacity",
+          "type": "number",
+          "desc": "承重（kg）"
+        },
+        {
+          "name": "foldable",
+          "type": "string",
+          "desc": "可折叠"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "助听器",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "channels",
+          "type": "number",
+          "desc": "通道数"
+        },
+        {
+          "name": "noise_reduction",
+          "type": "string",
+          "desc": "降噪"
+        },
+        {
+          "name": "bluetooth",
+          "type": "string",
+          "desc": "蓝牙"
+        },
+        {
+          "name": "charging_method",
+          "type": "string",
+          "desc": "充电方式"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "血压计/血糖仪",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "measurement_method",
+          "type": "string",
+          "desc": "测量方式"
+        },
+        {
+          "name": "memory",
+          "type": "number",
+          "desc": "记忆组数"
+        },
+        {
+          "name": "irregular_heartbeat",
+          "type": "string",
+          "desc": "心律不齐检测"
+        },
+        {
+          "name": "bluetooth",
+          "type": "string",
+          "desc": "蓝牙"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "制氧机/雾化器",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "oxygen_flow",
+          "type": "number",
+          "desc": "氧流量（L/min）"
+        },
+        {
+          "name": "oxygen_concentration",
+          "type": "number",
+          "desc": "氧浓度（%）"
+        },
+        {
+          "name": "noise",
+          "type": "number",
+          "desc": "噪音（dB）"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（kg）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "防褥疮垫",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "material",
+          "type": "string",
+          "desc": "材质"
+        },
+        {
+          "name": "size",
+          "type": "string",
+          "desc": "尺寸"
+        },
+        {
+          "name": "air_pump",
+          "type": "string",
+          "desc": "气泵"
+        },
+        {
+          "name": "pressure_alternating",
+          "type": "string",
+          "desc": "交替减压"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "消费电子",
+      "subcategory": "电子阅读器",
+      "fields": [
+        {
+          "name": "display_size",
+          "type": "number",
+          "desc": "屏幕尺寸（英寸）"
+        },
+        {
+          "name": "display_type",
+          "type": "string",
+          "desc": "墨水屏类型（黑白/彩色）"
+        },
+        {
+          "name": "resolution_ppi",
+          "type": "number",
+          "desc": "屏幕像素密度（PPI）"
+        },
+        {
+          "name": "storage",
+          "type": "string",
+          "desc": "存储容量"
+        },
+        {
+          "name": "front_light",
+          "type": "string",
+          "desc": "前光与色温调节"
+        },
+        {
+          "name": "waterproof",
+          "type": "string",
+          "desc": "防水等级"
+        },
+        {
+          "name": "stylus_support",
+          "type": "string",
+          "desc": "手写笔支持"
+        },
+        {
+          "name": "connectivity",
+          "type": "string",
+          "desc": "网络与连接方式"
+        },
+        {
+          "name": "weight",
+          "type": "number",
+          "desc": "重量（克）"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    },
+    {
+      "category": "适老辅具",
+      "subcategory": "跌倒报警器/老人手机",
+      "fields": [
+        {
+          "name": "type",
+          "type": "string",
+          "desc": "类型"
+        },
+        {
+          "name": "alert_method",
+          "type": "string",
+          "desc": "报警方式"
+        },
+        {
+          "name": "location",
+          "type": "string",
+          "desc": "定位"
+        },
+        {
+          "name": "call_sos",
+          "type": "string",
+          "desc": "一键SOS"
+        },
+        {
+          "name": "standby_time",
+          "type": "string",
+          "desc": "待机时间"
+        },
+        {
+          "name": "waterproof",
+          "type": "string",
+          "desc": "防水"
+        },
+        {
+          "name": "price_cny",
+          "type": "number",
+          "desc": "价格（元）"
+        }
+      ]
+    }
+  ]
+}

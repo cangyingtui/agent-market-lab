@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.mysql import JSON as MySQLJSON
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -115,6 +115,29 @@ class Product(Base, TimestampMixin):
     collection_time: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     quality_status: Mapped[str] = mapped_column(String(30), default="complete", nullable=False, index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+
+
+class CustomCompetitorBackfillJob(Base, TimestampMixin):
+    __tablename__ = "custom_competitor_backfill_jobs"
+    __table_args__ = (
+        UniqueConstraint("project_id", "snapshot_hash", name="uq_custom_competitor_backfill_project_snapshot"),
+        Index("idx_custom_competitor_backfill_status_created", "status", "created_at"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
+    snapshot_hash: Mapped[str] = mapped_column(String(128), nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="pending", nullable=False, index=True)
+    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    custom_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    inserted_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    matched_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    skipped_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    result_json: Mapped[dict | None] = mapped_column(JsonColumn, nullable=True)
+    error_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class MarketCrowdTemplate(Base, TimestampMixin):
